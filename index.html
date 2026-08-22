@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f172a">
+<title>Finance Quest</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header><div><b>🏆 Finance Quest</b><small>Ton argent. Tes règles. Ton avenir.</small></div><button id="settings">⚙️</button></header>
+<main>
+<section id="home" class="screen active">
+<div class="hero"><span>Solde actuel</span><strong id="balance">74,00 €</strong><small>Solde de départ</small></div>
+<div class="grid">
+<div class="card green"><span>📅 Prévision fin du mois</span><strong id="forecast">74,00 €</strong></div>
+<div class="card red"><span>💳 Débit différé</span><strong id="deferred">0,00 €</strong></div>
+<div class="card cyan"><span>💶 Revenus à recevoir</span><strong id="incomeDue">0,00 €</strong></div>
+<div class="card orange"><span>📤 À payer</span><strong id="billsDue">0,00 €</strong></div>
+</div>
+<div class="panel"><b>🎯 Épargne</b><div class="bar"><i id="savebar"></i></div><div><strong id="saving">0,00 €</strong> / <span id="goal">500,00 €</span></div></div>
+<div class="panel"><b>🎮 Finance Quest</b><div class="quest"><div>NIVEAU<strong id="level">1</strong></div><div>XP<strong id="xp">0 / 100</strong><div class="bar"><i id="xpbar"></i></div></div><div>BADGE<strong id="badge">🥉 Débutant</strong></div></div></div>
+<div class="panel"><b>📊 Résumé du mois</b><div class="summary"><div>Dépenses<strong id="expenses">0,00 €</strong></div><div>Revenus<strong id="income">0,00 €</strong></div><div>Crédits<strong id="credits">0,00 €</strong></div><div>Carburant<strong id="fuel">0,00 €</strong></div></div></div>
+<button class="primary" id="add">＋ Ajouter une dépense</button>
+</section>
+<section id="expensesScreen" class="screen"><h2>💳 Dépenses</h2><div id="expenseList"></div></section>
+<section id="billsScreen" class="screen"><h2>📅 Prélèvements</h2><div id="billList"></div></section>
+<section id="creditsScreen" class="screen"><h2>🏦 Crédits</h2><div id="creditList"></div></section>
+<section id="savingScreen" class="screen"><h2>🎯 Épargne</h2><div class="hero purple"><span>Épargne actuelle</span><strong id="savingBig">0,00 €</strong></div><div id="goalList"></div></section>
+</main>
+<nav><button data-s="home" class="active">🏠<small>Accueil</small></button><button data-s="expensesScreen">💳<small>Dépenses</small></button><button data-s="billsScreen">📅<small>À payer</small></button><button data-s="creditsScreen">🏦<small>Crédits</small></button><button data-s="savingScreen">🎯<small>Épargne</small></button></nav>
+<div id="modal" class="modal hidden"><div class="box"><div class="modalhead"><h3>Ajouter une dépense</h3><button id="close">✕</button></div><label>Libellé<input id="label" placeholder="Ex. Carrefour"></label><label>Montant (€)<input id="amount" type="number" step="0.01" inputmode="decimal"></label><label>Catégorie<select id="category"><option>Alimentation</option><option>Carburant</option><option>Logement</option><option>Loisirs</option><option>Parfums</option><option>Sport</option><option>Abonnements</option><option>Vêtements</option><option>Vacances</option><option>Divers</option></select></label><button class="primary" id="save">Enregistrer</button></div></div>
+<script src="app.js"></script>
+</body></html>
