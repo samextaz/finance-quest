@@ -1,4 +1,4 @@
-const KEY="financeQuest_v4";
+const KEY="financeQuest_v4_1";
 const DEFAULT={balance:0,savings:0,savingsGoal:0,deferred:0,bills:[],credits:[],expenses:[],incomes:[],completedCredits:[],settings:{overdraft:100,salaryEuropcar:0,salaryDominos:0,ticketsRestaurant:0,monthProgressKey:""}};
 let state=load(), viewMonth=new Date(new Date().getFullYear(),new Date().getMonth(),1), chartMode="freedom";
 
@@ -56,8 +56,16 @@ $("calendarGrid").innerHTML=html;document.querySelectorAll("[data-date]").forEac
 }
 function openDay(dateKey,fromCredits=false){
 const date=new Date(dateKey+"T12:00:00"),events=dayEvents(date);
-openModal("📅 "+date.toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long",year:"numeric"}),`<button class="primary" id="newOperation">＋ Nouvelle opération</button><div class="panel">${events.length?events.map(e=>`<p>${e.text}</p>`).join(""):"<p class="muted">Aucune opération.</p>"}</div>${fromCredits?`<p class="muted">Tu peux créer ton crédit depuis cette date.</p>`:""}`);
-$("newOperation").onclick=()=>openOperation(dateKey)
+let eventHtml="";
+if(events.length){
+  eventHtml=events.map(e=>"<p>"+e.text+"</p>").join("");
+}else{
+  eventHtml="<p class=\"muted\">Aucune opération.</p>";
+}
+const extra=fromCredits?"<p class=\"muted\">Tu peux créer ton crédit depuis cette date.</p>":"";
+const body="<button class=\"primary\" id=\"newOperation\">＋ Nouvelle opération</button><div class=\"panel\">"+eventHtml+"</div>"+extra;
+openModal("📅 "+date.toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long",year:"numeric"}),body);
+$("newOperation").onclick=()=>openOperation(dateKey);
 }
 function openOperation(defaultDate){
 openModal("➕ Nouvelle opération",`<div class="choice-grid"><button class="choice-btn" data-op="expense">💳 Dépense</button><button class="choice-btn" data-op="income">💰 Revenu</button><button class="choice-btn" data-op="credit">🏦 Paiement fractionné</button><button class="choice-btn" data-op="bill">🔄 Prélèvement récurrent</button></div><div id="opForm" class="panel muted">Choisis un type.</div>`);
