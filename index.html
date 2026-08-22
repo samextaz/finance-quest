@@ -1,715 +1,86 @@
 <!doctype html>
 <html lang="fr">
-
 <head>
-
 <meta charset="utf-8">
-
-<meta
-  name="viewport"
-  content="width=device-width,initial-scale=1,viewport-fit=cover"
->
-
-<meta
-  name="theme-color"
-  content="#0f172a"
->
-
-<meta
-  name="apple-mobile-web-app-capable"
-  content="yes"
->
-
-<meta
-  name="apple-mobile-web-app-status-bar-style"
-  content="black-translucent"
->
-
-<title>
-  Finance Quest
-</title>
-
-<link
-  rel="manifest"
-  href="manifest.webmanifest"
->
-
-<link
-  rel="stylesheet"
-  href="style.css"
->
-
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#08111f">
+<title>Finance Quest</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="style.css">
 </head>
-
-
 <body>
-
-
-<header>
-
-  <div>
-
-    <b>
-      🏆 Finance Quest
-    </b>
-
-    <small>
-      Ton argent. Tes règles. Ton avenir.
-    </small>
-
-  </div>
-
-
-  <button
-    id="settings"
-  >
-    ⚙️
-  </button>
-
+<header class="topbar">
+  <div><h1>🏆 Finance Quest</h1><p>Ton argent. Tes règles. Ton avenir.</p></div>
+  <button id="settingsBtn" class="icon-btn">⚙️</button>
 </header>
 
-
 <main>
-
-
-<!-- ===================================== -->
-<!-- ACCUEIL -->
-<!-- ===================================== -->
-
-<section
-  id="home"
-  class="screen active"
->
-
-
-  <div class="hero">
-
-    <span>
-      Solde actuel
-    </span>
-
-    <strong id="balance">
-      74,00 €
-    </strong>
-
-    <small>
-      Solde bancaire actuel
-    </small>
-
+<section id="homeScreen" class="screen active">
+  <div class="hero"><span>Solde actuel</span><strong id="currentBalance">0,00 €</strong><small>Solde réel du compte</small></div>
+  <div id="alertBox"></div>
+  <div class="grid-2">
+    <div class="card green"><span>📅 Prévision fin du mois</span><strong id="monthForecast">0,00 €</strong></div>
+    <div class="card red"><span>💳 Débit différé</span><strong id="deferredTotal">0,00 €</strong></div>
+    <div class="card cyan"><span>💶 Revenus à recevoir</span><strong id="incomePending">0,00 €</strong></div>
+    <div class="card orange"><span>📤 À payer</span><strong id="billsPending">0,00 €</strong></div>
   </div>
-
-
-  <div
-    id="financeAlert"
-  ></div>
-
-
-  <div class="grid">
-
-
-    <div class="card green">
-
-      <span>
-        📅 Prévision fin du mois
-      </span>
-
-      <strong id="forecast">
-        74,00 €
-      </strong>
-
-    </div>
-
-
-    <div class="card red">
-
-      <span>
-        💳 Débit différé
-      </span>
-
-      <strong id="deferred">
-        0,00 €
-      </strong>
-
-    </div>
-
-
-    <div class="card cyan">
-
-      <span>
-        💶 Revenus à recevoir
-      </span>
-
-      <strong id="incomeDue">
-        0,00 €
-      </strong>
-
-    </div>
-
-
-    <div class="card orange">
-
-      <span>
-        📤 À payer
-      </span>
-
-      <strong id="billsDue">
-        0,00 €
-      </strong>
-
-    </div>
-
-
-  </div>
-
-
-  <!-- ================================= -->
-  <!-- EPARGNE -->
-  <!-- ================================= -->
-
-
-  <div class="panel">
-
-    <b>
-      🎯 Épargne
-    </b>
-
-    <div class="bar">
-
-      <i
-        id="savebar"
-      ></i>
-
-    </div>
-
-    <div>
-
-      <strong id="saving">
-        0,00 €
-      </strong>
-
-      /
-
-      <span id="goal">
-        500,00 €
-      </span>
-
-    </div>
-
-  </div>
-
-
-  <!-- ================================= -->
-  <!-- FINANCE QUEST -->
-  <!-- ================================= -->
-
-
-  <div class="panel">
-
-    <b>
-      🎮 Finance Quest
-    </b>
-
-
-    <div class="quest">
-
-
-      <div>
-
-        NIVEAU
-
-        <strong id="level">
-          1
-        </strong>
-
-      </div>
-
-
-      <div>
-
-        XP
-
-        <strong id="xp">
-          0 / 100
-        </strong>
-
-        <div class="bar">
-
-          <i
-            id="xpbar"
-          ></i>
-
-        </div>
-
-      </div>
-
-
-      <div>
-
-        BADGE
-
-        <strong id="badge">
-          🥉 Débutant
-        </strong>
-
-      </div>
-
-
-    </div>
-
-  </div>
-
-
-  <!-- ================================= -->
-  <!-- RESUME -->
-  <!-- ================================= -->
-
-
-  <div class="panel">
-
-    <b>
-      📊 Résumé du mois
-    </b>
-
-
-    <div class="summary">
-
-
-      <div>
-
-        Dépenses
-
-        <strong id="expenses">
-          0,00 €
-        </strong>
-
-      </div>
-
-
-      <div>
-
-        Revenus
-
-        <strong id="income">
-          0,00 €
-        </strong>
-
-      </div>
-
-
-      <div>
-
-        Crédits
-
-        <strong id="credits">
-          0,00 €
-        </strong>
-
-      </div>
-
-
-      <div>
-
-        Carburant
-
-        <strong id="fuel">
-          0,00 €
-        </strong>
-
-      </div>
-
-
-    </div>
-
-  </div>
-
-
-  <!-- ================================= -->
-  <!-- SIMULATION -->
-  <!-- ================================= -->
-
-
-  <button
-    class="primary"
-    id="simulationButton"
-  >
-
-    🔮 Simuler ma situation
-  </button>
-
-  </section>
-  
-  <!-- ===================================== -->
-<!-- DEPENSES -->
-<!-- ===================================== -->
-
-<section
-  id="expensesScreen"
-  class="screen"
->
-
-  <h2>
-    💳 Dépenses
-  </h2>
-
-  <div
-    id="expenseList"
-  ></div>
-
+  <div class="panel"><div class="panel-title">🗽 Liberté financière</div><div class="big-stat" id="freedomIndex">0 %</div><div class="muted" id="freedomText">Ajoute tes données pour commencer.</div></div>
+  <div class="panel"><div class="panel-title">📊 Résumé du mois</div><div class="summary-grid">
+    <div>Dépenses<strong id="monthExpenses">0,00 €</strong></div>
+    <div>Revenus<strong id="monthIncome">0,00 €</strong></div>
+    <div>Crédits<strong id="creditMonthlyTotal">0,00 €</strong></div>
+    <div>Épargne<strong id="savingsTotal">0,00 €</strong></div>
+  </div></div>
+  <div class="panel"><div class="panel-title">🔮 Projection</div><div id="projectionMini"></div></div>
 </section>
 
-
-<!-- ===================================== -->
-<!-- CALENDRIER -->
-<!-- ===================================== -->
-
-<section
-  id="calendarScreen"
-  class="screen"
->
-
-  <h2>
-    📅 Calendrier
-  </h2>
-
-
-  <div
-    class="panel"
-  >
-
-    <div
-      id="calendarView"
-    ></div>
-
+<section id="calendarScreen" class="screen">
+  <div class="section-head"><h2>📅 Calendrier</h2><button id="todayBtn" class="small-btn">Aujourd'hui</button></div>
+  <div class="calendar-card">
+    <div class="calendar-nav"><button id="prevMonth" class="small-btn">‹</button><strong id="calendarTitle"></strong><button id="nextMonth" class="small-btn">›</button></div>
+    <div class="weekdays"><span>Lun</span><span>Mar</span><span>Mer</span><span>Jeu</span><span>Ven</span><span>Sam</span><span>Dim</span></div>
+    <div id="calendarGrid" class="calendar-grid"></div>
   </div>
-
-
-  <button
-    class="primary"
-    id="calendarSimulationButton"
-  >
-
-    🔮 Simuler une modification
-
-  </button>
-
+  <div class="legend"><span>🟢 Revenus</span><span>🔴 Dépenses</span><span>🟠 Crédits / prélèvements</span><span>🔵 Débit différé</span></div>
 </section>
 
-
-<!-- ===================================== -->
-<!-- PRELEVEMENTS -->
-<!-- ===================================== -->
-
-<section
-  id="billsScreen"
-  class="screen"
->
-
-  <h2>
-    📋 À payer
-  </h2>
-
-
-  <div
-    class="panel"
-  >
-
-    <b>
-      📅 Prélèvements récurrents
-    </b>
-
-    <p class="muted">
-
-      Les échéances sont automatiquement
-      intégrées au calendrier.
-
-    </p>
-
-  </div>
-
-
-  <div
-    id="billList"
-  ></div>
-
+<section id="creditsScreen" class="screen">
+  <div class="section-head"><h2>🏦 Crédits</h2><button id="addCreditBtn" class="primary-btn">＋ Crédit</button></div>
+  <div class="panel"><div class="summary-grid">
+    <div>Mensualités<strong id="creditsMonthlySummary">0,00 €</strong></div>
+    <div>Dette restante<strong id="debtSummary">0,00 €</strong></div>
+    <div>Crédits actifs<strong id="activeCreditCount">0</strong></div>
+    <div>Terminés<strong id="completedCreditCount">0</strong></div>
+  </div></div>
+  <div id="creditList"></div><div id="completedCreditList"></div>
 </section>
 
-
-<!-- ===================================== -->
-<!-- CREDITS -->
-<!-- ===================================== -->
-
-<section
-  id="creditsScreen"
-  class="screen"
->
-
-  <h2>
-    🏦 Crédits
-  </h2>
-
-
-  <div
-    class="panel"
-  >
-
-    <b>
-      💳 Charge mensuelle actuelle
-    </b>
-
-
-    <div
-      class="summary"
-    >
-
-      <div>
-
-        Total
-
-        <strong
-          id="creditTotal"
-        >
-          0,00 €
-        </strong>
-
-      </div>
-
-
-      <div>
-
-        Dette restante
-
-        <strong
-          id="debtTotal"
-        >
-          0,00 €
-        </strong>
-
-      </div>
-
-    </div>
-
+<section id="evolutionScreen" class="screen">
+  <div class="section-head"><h2>📈 Évolution</h2><button id="simulateBtn" class="primary-btn">🔮 Simuler</button></div>
+  <div class="view-tabs">
+    <button data-view="freedom" class="view-tab active">🗽 Liberté</button>
+    <button data-view="credits" class="view-tab">🔴 Crédits</button>
+    <button data-view="savings" class="view-tab">🟢 Épargne</button>
   </div>
-
-
-  <div
-    id="creditList"
-  ></div>
-
+  <div class="panel chart-panel"><canvas id="evolutionChart"></canvas></div>
+  <div class="panel"><div class="panel-title">🔮 Projection</div><div id="projectionTable"></div></div>
 </section>
+</main>
 
-
-<!-- ===================================== -->
-<!-- EPARGNE -->
-<!-- ===================================== -->
-
-<section
-  id="savingScreen"
-  class="screen"
->
-
-  <h2>
-    🎯 Épargne
-  </h2>
-
-
-  <div
-    class="hero purple"
-  >
-
-    <span>
-      Épargne actuelle
-    </span>
-
-
-    <strong
-      id="savingBig"
-    >
-      0,00 €
-    </strong>
-
-
-    <small>
-      Ton prochain niveau financier
-    </small>
-
-  </div>
-
-
-  <div
-    id="goalList"
-  ></div>
-
-</section>
-
-
-<!-- ===================================== -->
-<!-- EVOLUTION FINANCIERE -->
-<!-- ===================================== -->
-
-<section
-  id="evolutionScreen"
-  class="screen"
->
-
-  <h2>
-    📈 Évolution
-  </h2>
-
-
-  <div
-    class="panel"
-  >
-
-    <b>
-      🏆 Ta liberté financière
-    </b>
-
-
-    <p class="muted">
-
-      Suis l'évolution de tes crédits,
-      de ton épargne et de ta liberté
-      financière au fil du temps.
-
-    </p>
-
-  </div>
-
-
-  <div
-    id="evolutionView"
-  ></div>
-
-
-  <button
-    class="primary"
-    id="evolutionSimulationButton"
-  >
-
-    🔮 Tester un nouveau scénario
-
-  </button>
-
-</section>
-  <!-- ===================================== -->
-<!-- BARRE DE NAVIGATION -->
-<!-- ===================================== -->
-
-<nav>
-
-  <button
-    data-s="home"
-    class="active"
-  >
-
-    🏠
-
-    <small>
-      Accueil
-    </small>
-
-  </button>
-
-
-  <button
-    data-s="expensesScreen"
-  >
-
-    💳
-
-    <small>
-      Dépenses
-    </small>
-
-  </button>
-
-
-  <button
-    data-s="calendarScreen"
-  >
-
-    📅
-
-    <small>
-      Calendrier
-    </small>
-
-  </button>
-
-
-  <button
-    data-s="creditsScreen"
-  >
-
-    🏦
-
-    <small>
-      Crédits
-    </small>
-
-  </button>
-
-
-  <button
-    data-s="evolutionScreen"
-  >
-
-    📈
-
-    <small>
-      Évolution
-    </small>
-
-  </button>
-
+<nav class="bottom-nav">
+  <button data-screen="homeScreen" class="nav-btn active">🏠<small>Accueil</small></button>
+  <button data-screen="calendarScreen" class="nav-btn">📅<small>Calendrier</small></button>
+  <button data-screen="creditsScreen" class="nav-btn">🏦<small>Crédits</small></button>
+  <button data-screen="evolutionScreen" class="nav-btn">📈<small>Évolution</small></button>
 </nav>
 
-
-<!-- ===================================== -->
-<!-- MODALE DE BASE -->
-<!-- ===================================== -->
-
-<div
-  id="modal"
-  class="modal hidden"
->
-
-  <div class="box">
-
-    <div class="modalhead">
-
-      <h3>
-        Finance Quest
-      </h3>
-
-
-      <button
-        id="close"
-      >
-        ✕
-      </button>
-
-    </div>
-
-
-    <div
-      id="modalContent"
-    ></div>
-
+<div id="modal" class="modal hidden">
+  <div class="modal-box">
+    <div class="modal-head"><h3 id="modalTitle">Finance Quest</h3><button id="modalClose" class="icon-btn">✕</button></div>
+    <div id="modalBody"></div>
   </div>
-
 </div>
 
-
-<!-- ===================================== -->
-<!-- SCRIPT -->
-<!-- ===================================== -->
-
-<script
-  src="app.js"
-></script>
-
-
+<script src="app.js"></script>
 </body>
-
 </html>
