@@ -1,9 +1,1 @@
-{
-  "name":"Finance Quest",
-  "short_name":"Finance Quest",
-  "start_url":"./",
-  "display":"standalone",
-  "background_color":"#08111f",
-  "theme_color":"#08111f",
-  "lang":"fr"
-}
+{"name":"Finance Quest","short_name":"Finance Quest","start_url":"./","display":"standalone","background_color":"#08111f","theme_color":"#08111f","lang":"fr"}
