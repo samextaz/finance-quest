@@ -1,13 +1,13 @@
 /* =========================================================
-   FINANCE QUEST — V2
-   BLOC 1/4 — DONNÉES ET OUTILS
+   FINANCE QUEST — VERSION STABLE
+   BLOC 1/4 — DONNEES, SAUVEGARDE ET CALCULS
    ========================================================= */
 
 "use strict";
 
 
 /* =========================================================
-   DONNÉES PRINCIPALES
+   DONNEES PAR DEFAUT
    ========================================================= */
 
 const DEFAULT_DATA = {
@@ -20,11 +20,11 @@ const DEFAULT_DATA = {
 
   deferred: 0,
 
-  income: 0,
-
   expenses: [],
 
   bills: [],
+
+  incomes: [],
 
   credits: [
 
@@ -32,69 +32,59 @@ const DEFAULT_DATA = {
       id: "voiture",
       name: "Voiture",
       monthly: 420.23,
-      remaining: 16,
-      original: 6723.68
+      remaining: 16
     },
 
     {
       id: "tv",
       name: "TV",
       monthly: 55,
-      remaining: 35,
-      original: 1925
+      remaining: 35
     },
 
     {
       id: "regroupement",
       name: "Regroupement",
       monthly: 50,
-      remaining: 23,
-      original: 1150
+      remaining: 23
     },
 
     {
       id: "apple",
       name: "Apple",
       monthly: 61.63,
-      remaining: 14,
-      original: 862.82
+      remaining: 14
     },
 
     {
       id: "etudes",
       name: "Études",
       monthly: 66.10,
-      remaining: 11,
-      original: 727.10
+      remaining: 11
     },
 
     {
       id: "tablette",
       name: "Tablette",
       monthly: 17,
-      remaining: 12,
-      original: 204
+      remaining: 12
     },
 
     {
       id: "amazon",
       name: "Amazon Noël",
       monthly: 21.76,
-      remaining: 2,
-      original: 43.52
+      remaining: 2
     },
 
     {
       id: "manette",
       name: "Manette",
       monthly: 23.92,
-      remaining: 3,
-      original: 71.76
+      remaining: 3
     }
 
   ],
-
-  incomes: [],
 
   xp: 0,
 
@@ -109,10 +99,6 @@ const DEFAULT_DATA = {
     salaryDominos: 330,
 
     mealTickets: 200,
-
-    exceptionalIncome: 0,
-
-    exceptionalSale: 0,
 
     rent: 250,
 
@@ -134,10 +120,11 @@ const DEFAULT_DATA = {
 
 
 /* =========================================================
-   CHARGEMENT / SAUVEGARDE
+   STOCKAGE
    ========================================================= */
 
-const STORAGE_KEY = "financeQuestV2";
+const STORAGE_KEY =
+  "financeQuestStableV1";
 
 
 function cloneDefaultData() {
@@ -149,12 +136,64 @@ function cloneDefaultData() {
 }
 
 
+function mergeData(base, saved) {
+
+  const result = {
+
+    ...base,
+
+    ...saved
+
+  };
+
+
+  result.settings = {
+
+    ...base.settings,
+
+    ...(saved.settings || {})
+
+  };
+
+
+  result.expenses =
+    Array.isArray(saved.expenses)
+      ? saved.expenses
+      : [];
+
+
+  result.bills =
+    Array.isArray(saved.bills)
+      ? saved.bills
+      : [];
+
+
+  result.incomes =
+    Array.isArray(saved.incomes)
+      ? saved.incomes
+      : [];
+
+
+  result.credits =
+    Array.isArray(saved.credits)
+      ? saved.credits
+      : base.credits;
+
+
+  return result;
+
+}
+
+
 function loadData() {
 
   try {
 
     const saved =
-      localStorage.getItem(STORAGE_KEY);
+      localStorage.getItem(
+        STORAGE_KEY
+      );
+
 
     if (!saved) {
 
@@ -162,18 +201,21 @@ function loadData() {
 
     }
 
-    const parsed =
-      JSON.parse(saved);
 
     return mergeData(
+
       cloneDefaultData(),
-      parsed
+
+      JSON.parse(saved)
+
     );
 
-  } catch (error) {
+  }
+
+  catch (error) {
 
     console.error(
-      "Erreur de chargement Finance Quest:",
+      "Erreur de chargement :",
       error
     );
 
@@ -184,44 +226,8 @@ function loadData() {
 }
 
 
-function mergeData(base, saved) {
-
-  const result = {
-    ...base,
-    ...saved
-  };
-
-  result.settings = {
-    ...base.settings,
-    ...(saved.settings || {})
-  };
-
-  result.expenses =
-    Array.isArray(saved.expenses)
-      ? saved.expenses
-      : [];
-
-  result.bills =
-    Array.isArray(saved.bills)
-      ? saved.bills
-      : [];
-
-  result.credits =
-    Array.isArray(saved.credits)
-      ? saved.credits
-      : base.credits;
-
-  result.incomes =
-    Array.isArray(saved.incomes)
-      ? saved.incomes
-      : [];
-
-  return result;
-
-}
-
-
-let data = loadData();
+let data =
+  loadData();
 
 
 function saveData() {
@@ -229,14 +235,19 @@ function saveData() {
   try {
 
     localStorage.setItem(
+
       STORAGE_KEY,
+
       JSON.stringify(data)
+
     );
 
-  } catch (error) {
+  }
+
+  catch (error) {
 
     console.error(
-      "Impossible de sauvegarder:",
+      "Erreur de sauvegarde :",
       error
     );
 
@@ -246,20 +257,34 @@ function saveData() {
 
 
 /* =========================================================
-   OUTILS
+   OUTILS GENERAUX
    ========================================================= */
+
+function getElement(id) {
+
+  return document.getElementById(id);
+
+}
+
 
 function money(value) {
 
   const number =
     Number(value) || 0;
 
+
   return number.toLocaleString(
+
     "fr-FR",
+
     {
+
       minimumFractionDigits: 2,
+
       maximumFractionDigits: 2
+
     }
+
   ) + " €";
 
 }
@@ -274,9 +299,13 @@ function numberValue(value) {
     value =
       value
         .replace(",", ".")
-        .replace(/[^\d.-]/g, "");
+        .replace(
+          /[^\d.-]/g,
+          ""
+        );
 
   }
+
 
   return Number(value) || 0;
 
@@ -285,39 +314,55 @@ function numberValue(value) {
 
 function todayISO() {
 
-  const date = new Date();
+  const date =
+    new Date();
+
 
   const year =
     date.getFullYear();
+
 
   const month =
     String(
       date.getMonth() + 1
     ).padStart(2, "0");
 
+
   const day =
     String(
       date.getDate()
     ).padStart(2, "0");
 
-  return `${year}-${month}-${day}`;
+
+  return (
+    year +
+    "-" +
+    month +
+    "-" +
+    day
+  );
 
 }
 
 
-function monthKey(date) {
+function monthKey(value) {
 
-  const d =
-    date instanceof Date
-      ? date
-      : new Date(date);
+  const date =
+    value instanceof Date
+      ? value
+      : new Date(value);
+
 
   return (
-    d.getFullYear() +
+
+    date.getFullYear() +
+
     "-" +
+
     String(
-      d.getMonth() + 1
+      date.getMonth() + 1
     ).padStart(2, "0")
+
   );
 
 }
@@ -325,34 +370,55 @@ function monthKey(date) {
 
 function escapeHTML(value) {
 
-  return String(value ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
+  return String(
+    value ?? ""
+  )
 
-}
+    .replace(
+      /&/g,
+      "&amp;"
+    )
 
+    .replace(
+      /</g,
+      "&lt;"
+    )
 
-function getElement(id) {
+    .replace(
+      />/g,
+      "&gt;"
+    )
 
-  return document.getElementById(id);
+    .replace(
+      /"/g,
+      "&quot;"
+    )
+
+    .replace(
+      /'/g,
+      "&#039;"
+    );
 
 }
 
 
 /* =========================================================
-   CALCULS FINANCIERS
+   CALCULS DES CREDITS
    ========================================================= */
 
 function creditMonthlyTotal() {
 
   return data.credits.reduce(
+
     (total, credit) =>
+
       total +
-      numberValue(credit.monthly),
+      numberValue(
+        credit.monthly
+      ),
+
     0
+
   );
 
 }
@@ -361,49 +427,45 @@ function creditMonthlyTotal() {
 function creditDebtTotal() {
 
   return data.credits.reduce(
+
     (total, credit) =>
+
       total +
+
       (
-        numberValue(credit.monthly) *
-        numberValue(credit.remaining)
+        numberValue(
+          credit.monthly
+        ) *
+
+        numberValue(
+          credit.remaining
+        )
       ),
+
     0
+
   );
 
 }
 
+
+/* =========================================================
+   DEPENSES
+   ========================================================= */
 
 function expensesTotal() {
 
   return data.expenses.reduce(
+
     (total, expense) =>
+
       total +
-      numberValue(expense.amount),
+      numberValue(
+        expense.amount
+      ),
+
     0
-  );
 
-}
-
-
-function incomesTotal() {
-
-  return data.incomes.reduce(
-    (total, income) =>
-      total +
-      numberValue(income.amount),
-    0
-  );
-
-}
-
-
-function billsTotal() {
-
-  return data.bills.reduce(
-    (total, bill) =>
-      total +
-      numberValue(bill.amount),
-    0
   );
 
 }
@@ -412,19 +474,57 @@ function billsTotal() {
 function currentMonthExpenses() {
 
   const current =
-    monthKey(new Date());
+    monthKey(
+      new Date()
+    );
+
 
   return data.expenses
+
     .filter(
+
       expense =>
-        monthKey(expense.date) === current
+
+        monthKey(
+          expense.date
+        ) === current
+
     )
+
     .reduce(
+
       (total, expense) =>
+
         total +
-        numberValue(expense.amount),
+        numberValue(
+          expense.amount
+        ),
+
       0
+
     );
+
+}
+
+
+/* =========================================================
+   REVENUS
+   ========================================================= */
+
+function incomesTotal() {
+
+  return data.incomes.reduce(
+
+    (total, income) =>
+
+      total +
+      numberValue(
+        income.amount
+      ),
+
+    0
+
+  );
 
 }
 
@@ -432,19 +532,57 @@ function currentMonthExpenses() {
 function currentMonthIncome() {
 
   const current =
-    monthKey(new Date());
+    monthKey(
+      new Date()
+    );
+
 
   return data.incomes
+
     .filter(
+
       income =>
-        monthKey(income.date) === current
+
+        monthKey(
+          income.date
+        ) === current
+
     )
+
     .reduce(
+
       (total, income) =>
+
         total +
-        numberValue(income.amount),
+        numberValue(
+          income.amount
+        ),
+
       0
+
     );
+
+}
+
+
+/* =========================================================
+   PRELEVEMENTS
+   ========================================================= */
+
+function billsTotal() {
+
+  return data.bills.reduce(
+
+    (total, bill) =>
+
+      total +
+      numberValue(
+        bill.amount
+      ),
+
+    0
+
+  );
 
 }
 
@@ -455,52 +593,54 @@ function currentMonthIncome() {
 
 function getMonthEndForecast() {
 
-  const now =
-    new Date();
-
-  const year =
-    now.getFullYear();
-
-  const month =
-    now.getMonth();
-
-  const lastDay =
-    new Date(
-      year,
-      month + 1,
-      0
-    ).getDate();
-
   let forecast =
-    numberValue(data.balance);
+    numberValue(
+      data.balance
+    );
 
-  const monthlyIncome =
+
+  const salaries =
+
     numberValue(
       data.settings.salaryEuropcar
-    ) +
+    )
+
+    +
+
     numberValue(
       data.settings.salaryDominos
     );
 
-  const receivedIncome =
+
+  const received =
     currentMonthIncome();
 
-  const remainingIncome =
+
+  const remainingSalary =
     Math.max(
+
       0,
-      monthlyIncome - receivedIncome
+
+      salaries - received
+
     );
 
-  forecast += remainingIncome;
+
+  forecast +=
+    remainingSalary;
+
 
   forecast -=
     currentMonthExpenses();
 
+
   forecast -=
     billsTotal();
 
+
   forecast -=
     creditMonthlyTotal();
+
 
   return forecast;
 
@@ -519,55 +659,47 @@ function updateLevel() {
       Number(data.xp) || 0
     );
 
+
   data.level =
-    Math.floor(xp / 100) + 1;
+    Math.floor(
+      xp / 100
+    ) + 1;
 
-  const badges = [
 
-    {
-      min: 0,
-      name: "🥉 Débutant"
-    },
+  if (xp >= 1000) {
 
-    {
-      min: 100,
-      name: "🥈 Gestionnaire"
-    },
+    data.badge =
+      "👑 Maître financier";
 
-    {
-      min: 300,
-      name: "🥇 Épargnant"
-    },
+  }
 
-    {
-      min: 600,
-      name: "💎 Stratège"
-    },
+  else if (xp >= 600) {
 
-    {
-      min: 1000,
-      name: "👑 Maître financier"
-    }
+    data.badge =
+      "💎 Stratège";
 
-  ];
+  }
 
-  let current =
-    badges[0];
+  else if (xp >= 300) {
 
-  badges.forEach(
-    badge => {
+    data.badge =
+      "🥇 Épargnant";
 
-      if (xp >= badge.min) {
+  }
 
-        current = badge;
+  else if (xp >= 100) {
 
-      }
+    data.badge =
+      "🥈 Gestionnaire";
 
-    }
-  );
+  }
 
-  data.badge =
-    current.name;
+  else {
+
+    data.badge =
+      "🥉 Débutant";
+
+  }
 
 }
 
@@ -575,11 +707,17 @@ function updateLevel() {
 function addXP(amount) {
 
   data.xp =
+
     Math.max(
+
       0,
+
       Number(data.xp || 0) +
+
       Number(amount || 0)
+
     );
+
 
   updateLevel();
 
@@ -589,34 +727,41 @@ function addXP(amount) {
 
 
 /* =========================================================
-   EXPORT GLOBAL
+   EXPORT POUR LES AUTRES BLOCS
    ========================================================= */
 
 window.FinanceQuest = {
 
-  getData: () => data,
+  getData:
+    () => data,
 
   saveData,
 
   money,
 
-  addXP,
+  numberValue,
+
+  todayISO,
+
+  escapeHTML,
 
   creditMonthlyTotal,
 
   creditDebtTotal,
 
-  getMonthEndForecast
+  getMonthEndForecast,
+
+  addXP
 
 };
 
 
 /* =========================================================
-   FIN DU BLOC 1
+   FIN DU BLOC 1/4
    ========================================================= */
 /* =========================================================
-   FINANCE QUEST — V2
-   BLOC 2/4 — NAVIGATION, AFFICHAGE ET DEPENSES
+   FINANCE QUEST — VERSION STABLE
+   BLOC 2/4 — ACCUEIL, NAVIGATION ET DEPENSES
    ========================================================= */
 
 
@@ -624,116 +769,146 @@ window.FinanceQuest = {
    NAVIGATION
    ========================================================= */
 
-function setupNavigation() {
-
-  const buttons =
-    document.querySelectorAll(
-      "nav button[data-s]"
-    );
-
-  buttons.forEach(button => {
-
-    button.addEventListener(
-      "click",
-      () => {
-
-        const screenId =
-          button.dataset.s;
-
-        showScreen(screenId);
-
-      }
-    );
-
-  });
-
-}
-
-
 function showScreen(screenId) {
 
-  const screens =
-    document.querySelectorAll(
-      ".screen"
-    );
+  document
+    .querySelectorAll(".screen")
+    .forEach(screen => {
 
-  screens.forEach(screen => {
+      screen.classList.remove(
+        "active"
+      );
 
-    screen.classList.remove(
-      "active"
-    );
-
-  });
+    });
 
 
-  const target =
+  const screen =
     getElement(screenId);
 
-  if (target) {
 
-    target.classList.add(
+  if (screen) {
+
+    screen.classList.add(
       "active"
     );
 
   }
 
 
-  const buttons =
-    document.querySelectorAll(
+  document
+    .querySelectorAll(
       "nav button[data-s]"
-    );
+    )
+    .forEach(button => {
 
-  buttons.forEach(button => {
+      button.classList.toggle(
 
-    button.classList.toggle(
-      "active",
-      button.dataset.s === screenId
-    );
+        "active",
 
-  });
+        button.dataset.s ===
+        screenId
+
+      );
+
+    });
 
 
-  if (screenId === "home") {
+  if (
+    screenId ===
+    "home"
+  ) {
 
-    render();
+    renderHome();
 
   }
 
-  if (screenId === "expensesScreen") {
+
+  if (
+    screenId ===
+    "expensesScreen"
+  ) {
 
     renderExpenses();
 
   }
 
-  if (screenId === "calendarScreen") {
+
+  if (
+    screenId ===
+    "calendarScreen"
+  ) {
 
     renderCalendar();
 
   }
 
-  if (screenId === "billsScreen") {
+
+  if (
+    screenId ===
+    "billsScreen"
+  ) {
 
     renderBills();
 
   }
 
-  if (screenId === "creditsScreen") {
+
+  if (
+    screenId ===
+    "creditsScreen"
+  ) {
 
     renderCredits();
 
   }
 
-  if (screenId === "savingScreen") {
+
+  if (
+    screenId ===
+    "savingScreen"
+  ) {
 
     renderSavings();
 
   }
 
-  if (screenId === "evolutionScreen") {
+
+  if (
+    screenId ===
+    "evolutionScreen"
+  ) {
 
     renderEvolution();
 
   }
+
+}
+
+
+/* =========================================================
+   INITIALISATION DE LA NAVIGATION
+   ========================================================= */
+
+function setupNavigation() {
+
+  document
+    .querySelectorAll(
+      "nav button[data-s]"
+    )
+    .forEach(button => {
+
+      button.addEventListener(
+        "click",
+        () => {
+
+          showScreen(
+            button.dataset.s
+          );
+
+        }
+      );
+
+    });
 
 }
 
@@ -744,50 +919,68 @@ function showScreen(screenId) {
 
 function renderHome() {
 
+  updateLevel();
+
+
   const balance =
     getElement("balance");
+
 
   const forecast =
     getElement("forecast");
 
+
   const deferred =
     getElement("deferred");
+
 
   const incomeDue =
     getElement("incomeDue");
 
+
   const billsDue =
     getElement("billsDue");
+
 
   const saving =
     getElement("saving");
 
+
   const goal =
     getElement("goal");
+
 
   const savebar =
     getElement("savebar");
 
+
   const level =
     getElement("level");
+
 
   const xp =
     getElement("xp");
 
+
   const xpbar =
     getElement("xpbar");
+
 
   const badge =
     getElement("badge");
 
+
   const expenses =
     getElement("expenses");
+
 
   const income =
     getElement("income");
 
+
   const credits =
     getElement("credits");
+
 
   const fuel =
     getElement("fuel");
@@ -796,7 +989,9 @@ function renderHome() {
   if (balance) {
 
     balance.textContent =
-      money(data.balance);
+      money(
+        data.balance
+      );
 
   }
 
@@ -814,27 +1009,33 @@ function renderHome() {
   if (deferred) {
 
     deferred.textContent =
-      money(data.deferred);
+      money(
+        data.deferred
+      );
 
   }
 
 
   if (incomeDue) {
 
+    const due =
+      data.incomes
+        .filter(
+          item =>
+            !item.received
+        )
+        .reduce(
+          (sum, item) =>
+            sum +
+            numberValue(
+              item.amount
+            ),
+          0
+        );
+
+
     incomeDue.textContent =
-      money(
-        data.incomes
-          .filter(
-            item =>
-              !item.received
-          )
-          .reduce(
-            (sum, item) =>
-              sum +
-              numberValue(item.amount),
-            0
-          )
-      );
+      money(due);
 
   }
 
@@ -852,7 +1053,9 @@ function renderHome() {
   if (saving) {
 
     saving.textContent =
-      money(data.savings);
+      money(
+        data.savings
+      );
 
   }
 
@@ -860,7 +1063,9 @@ function renderHome() {
   if (goal) {
 
     goal.textContent =
-      money(data.savingsGoal);
+      money(
+        data.savingsGoal
+      );
 
   }
 
@@ -869,11 +1074,14 @@ function renderHome() {
 
     const percent =
       data.savingsGoal > 0
+
         ? (
             data.savings /
             data.savingsGoal
           ) * 100
+
         : 0;
+
 
     savebar.style.width =
       Math.min(
@@ -885,9 +1093,6 @@ function renderHome() {
       ) + "%";
 
   }
-
-
-  updateLevel();
 
 
   if (level) {
@@ -903,8 +1108,10 @@ function renderHome() {
     const currentXP =
       data.xp % 100;
 
+
     xp.textContent =
-      `${currentXP} / 100`;
+      currentXP +
+      " / 100";
 
   }
 
@@ -913,6 +1120,7 @@ function renderHome() {
 
     const currentXP =
       data.xp % 100;
+
 
     xpbar.style.width =
       currentXP + "%";
@@ -940,9 +1148,26 @@ function renderHome() {
 
   if (income) {
 
+    const salaryTotal =
+
+      numberValue(
+        data.settings.salaryEuropcar
+      )
+
+      +
+
+      numberValue(
+        data.settings.salaryDominos
+      )
+
+      +
+
+      currentMonthIncome();
+
+
     income.textContent =
       money(
-        currentMonthIncome()
+        salaryTotal
       );
 
   }
@@ -960,22 +1185,27 @@ function renderHome() {
 
   if (fuel) {
 
-    const fuelTotal =
+    const totalFuel =
       data.expenses
+
         .filter(
           item =>
             item.category ===
             "Carburant"
         )
+
         .reduce(
           (sum, item) =>
             sum +
-            numberValue(item.amount),
+            numberValue(
+              item.amount
+            ),
           0
         );
 
+
     fuel.textContent =
-      money(fuelTotal);
+      money(totalFuel);
 
   }
 
@@ -996,6 +1226,7 @@ function renderFinanceAlert() {
       "financeAlert"
     );
 
+
   if (!container) {
 
     return;
@@ -1007,13 +1238,13 @@ function renderFinanceAlert() {
     getMonthEndForecast();
 
 
-  let message = "";
+  let message;
 
 
   if (forecast < 0) {
 
     message =
-      "⚠️ Attention : ta prévision de fin de mois est négative.";
+      "🔴 Attention : la prévision de fin de mois est négative.";
 
   }
 
@@ -1027,20 +1258,27 @@ function renderFinanceAlert() {
   else if (forecast < 300) {
 
     message =
-      "🟡 Situation correcte : garde un œil sur les dépenses.";
+      "🟡 Situation correcte : garde une marge de sécurité.";
 
   }
 
   else {
 
     message =
-      "🟢 Bonne trajectoire : tu gardes une marge positive.";
+      "🟢 Bonne trajectoire : ta prévision reste positive.";
 
   }
 
 
-  container.innerHTML =
-    `<div class="panel">${escapeHTML(message)}</div>`;
+  container.innerHTML = `
+
+    <div class="panel">
+
+      ${escapeHTML(message)}
+
+    </div>
+
+  `;
 
 }
 
@@ -1056,6 +1294,7 @@ function renderExpenses() {
       "expenseList"
     );
 
+
   if (!container) {
 
     return;
@@ -1063,48 +1302,53 @@ function renderExpenses() {
   }
 
 
+  let html = `
+
+    <button
+      class="primary"
+      id="expenseAddButton"
+    >
+      ＋ Ajouter une dépense
+    </button>
+
+  `;
+
+
   if (
     data.expenses.length === 0
   ) {
 
-    container.innerHTML = `
+    html += `
 
       <div class="panel">
 
         <b>
-          Aucune dépense
+          Aucune dépense enregistrée
         </b>
 
         <p class="muted">
-          Ajoute ta première dépense
-          avec le bouton +.
-        </p>
 
-        <button
-          class="primary"
-          id="emptyExpenseAdd"
-        >
-          ＋ Ajouter une dépense
-        </button>
+          Ajoute une dépense pour
+          commencer ton suivi.
+
+        </p>
 
       </div>
 
     `;
 
 
-    const addButton =
-      getElement(
-        "emptyExpenseAdd"
-      );
+    container.innerHTML =
+      html;
 
-    if (addButton) {
 
-      addButton.addEventListener(
-        "click",
-        () => openExpenseModal()
-      );
+    getElement(
+      "expenseAddButton"
+    )?.addEventListener(
+      "click",
+      openExpenseModal
+    );
 
-    }
 
     return;
 
@@ -1120,62 +1364,86 @@ function renderExpenses() {
       );
 
 
-  container.innerHTML =
-    sorted.map(
-      expense => `
+  html +=
 
-        <div class="panel">
+    sorted
+      .map(
+        expense => `
 
-          <div class="summary">
+          <div class="panel">
 
-            <div>
+            <div class="summary">
 
-              <strong>
-                ${escapeHTML(
-                  expense.label
-                )}
-              </strong>
+              <div>
 
-              <small>
-                ${escapeHTML(
-                  expense.category
-                )}
-              </small>
+                <strong>
+
+                  ${escapeHTML(
+                    expense.label
+                  )}
+
+                </strong>
+
+                <small>
+
+                  ${escapeHTML(
+                    expense.category
+                  )}
+
+                </small>
+
+                <small>
+
+                  ${escapeHTML(
+                    expense.date
+                  )}
+
+                </small>
+
+              </div>
+
+
+              <div>
+
+                <strong>
+
+                  -${money(
+                    expense.amount
+                  )}
+
+                </strong>
+
+              </div>
 
             </div>
 
-            <div>
 
-              <strong>
-                -${money(
-                  expense.amount
-                )}
-              </strong>
-
-              <small>
-                ${escapeHTML(
-                  expense.date
-                )}
-              </small>
-
-            </div>
+            <button
+              class="danger expense-delete"
+              data-id="${escapeHTML(
+                expense.id
+              )}"
+            >
+              Supprimer
+            </button>
 
           </div>
 
-          <button
-            class="danger expense-delete"
-            data-id="${escapeHTML(
-              expense.id
-            )}"
-          >
-            Supprimer
-          </button>
+        `
+      )
+      .join("");
 
-        </div>
 
-      `
-    )
-    .join("");
+  container.innerHTML =
+    html;
+
+
+  getElement(
+    "expenseAddButton"
+  )?.addEventListener(
+    "click",
+    openExpenseModal
+  );
 
 
   container
@@ -1200,15 +1468,21 @@ function renderExpenses() {
 }
 
 
+/* =========================================================
+   AJOUT DEPENSE
+   ========================================================= */
+
 function addExpense(
   label,
   amount,
   category,
-  date = todayISO()
+  date
 ) {
 
   const value =
-    numberValue(amount);
+    numberValue(
+      amount
+    );
 
 
   if (
@@ -1216,12 +1490,16 @@ function addExpense(
     value <= 0
   ) {
 
+    alert(
+      "Indique un libellé et un montant valide."
+    );
+
     return false;
 
   }
 
 
-  const expense = {
+  data.expenses.push({
 
     id:
       "expense_" +
@@ -1234,16 +1512,14 @@ function addExpense(
       value,
 
     category:
-      category || "Divers",
+      category ||
+      "Divers",
 
-    date
+    date:
+      date ||
+      todayISO()
 
-  };
-
-
-  data.expenses.push(
-    expense
-  );
+  });
 
 
   data.balance -=
@@ -1254,7 +1530,7 @@ function addExpense(
 
   saveData();
 
-  render();
+  renderHome();
 
   renderExpenses();
 
@@ -1265,16 +1541,22 @@ function addExpense(
 }
 
 
+/* =========================================================
+   SUPPRESSION DEPENSE
+   ========================================================= */
+
 function deleteExpense(id) {
 
   const index =
     data.expenses.findIndex(
-      item =>
-        item.id === id
+      expense =>
+        expense.id === id
     );
 
 
-  if (index === -1) {
+  if (
+    index === -1
+  ) {
 
     return;
 
@@ -1299,7 +1581,7 @@ function deleteExpense(id) {
 
   saveData();
 
-  render();
+  renderHome();
 
   renderExpenses();
 
@@ -1317,12 +1599,17 @@ function openExpenseModal() {
   const modal =
     getElement("modal");
 
+
   const content =
     getElement(
       "modalContent"
     );
 
-  if (!modal || !content) {
+
+  if (
+    !modal ||
+    !content
+  ) {
 
     return;
 
@@ -1331,7 +1618,23 @@ function openExpenseModal() {
 
   content.innerHTML = `
 
+    <div class="modalhead">
+
+      <h3>
+        Ajouter une dépense
+      </h3>
+
+      <button
+        id="dynamicClose"
+      >
+        ✕
+      </button>
+
+    </div>
+
+
     <label>
+
       Libellé
 
       <input
@@ -1344,6 +1647,7 @@ function openExpenseModal() {
 
 
     <label>
+
       Montant (€)
 
       <input
@@ -1358,6 +1662,7 @@ function openExpenseModal() {
 
 
     <label>
+
       Catégorie
 
       <select
@@ -1410,6 +1715,7 @@ function openExpenseModal() {
 
 
     <label>
+
       Date
 
       <input
@@ -1425,7 +1731,9 @@ function openExpenseModal() {
       class="primary"
       id="confirmExpense"
     >
+
       Enregistrer
+
     </button>
 
   `;
@@ -1436,74 +1744,65 @@ function openExpenseModal() {
   );
 
 
-  const confirm =
-    getElement(
-      "confirmExpense"
-    );
+  getElement(
+    "dynamicClose"
+  )?.addEventListener(
+    "click",
+    closeModal
+  );
 
 
-  if (confirm) {
+  getElement(
+    "confirmExpense"
+  )?.addEventListener(
+    "click",
+    () => {
 
-    confirm.addEventListener(
-      "click",
-      () => {
+      const success =
+        addExpense(
 
-        const label =
           getElement(
             "expenseLabel"
-          ).value;
+          ).value,
 
-        const amount =
           getElement(
             "expenseAmount"
-          ).value;
+          ).value,
 
-        const category =
           getElement(
             "expenseCategory"
-          ).value;
+          ).value,
 
-        const date =
           getElement(
             "expenseDate"
-          ).value ||
-          todayISO();
+          ).value
+
+        );
 
 
-        const success =
-          addExpense(
-            label,
-            amount,
-            category,
-            date
-          );
+      if (success) {
 
-
-        if (success) {
-
-          closeModal();
-
-        }
+        closeModal();
 
       }
-    );
 
-  }
+    }
+  );
 
 }
 
 
 /* =========================================================
-   FIN DU BLOC 2
+   FIN DU BLOC 2/4
    ========================================================= */
 /* =========================================================
-   FINANCE QUEST — V2
-   BLOC 3/4 — PRELEVEMENTS, CREDITS, CALENDRIER
+   FINANCE QUEST — VERSION STABLE
+   BLOC 3/4 — PRELEVEMENTS, CREDITS ET CALENDRIER
    ========================================================= */
 
 
 /* =========================================================
-   FERMETURE DE LA MODALE
+   FERMETURE MODALE
    ========================================================= */
 
 function closeModal() {
@@ -1513,7 +1812,9 @@ function closeModal() {
 
   if (modal) {
 
-    modal.classList.add("hidden");
+    modal.classList.add(
+      "hidden"
+    );
 
   }
 
@@ -1529,89 +1830,166 @@ function renderBills() {
   const container =
     getElement("billList");
 
-  if (!container) return;
 
-
-  if (data.bills.length === 0) {
-
-    container.innerHTML = `
-      <div class="panel">
-        <b>Aucun prélèvement ajouté</b>
-        <p class="muted">
-          Les prélèvements récurrents apparaîtront ici.
-        </p>
-        <button
-          class="primary"
-          id="addBillButton"
-        >
-          ＋ Ajouter un prélèvement
-        </button>
-      </div>
-    `;
-
-    getElement("addBillButton")
-      ?.addEventListener(
-        "click",
-        openBillModal
-      );
+  if (!container) {
 
     return;
 
   }
 
 
-  container.innerHTML =
-    data.bills.map(
-      bill => `
+  let html = `
 
-        <div class="panel">
+    <button
+      class="primary"
+      id="billAddButton"
+    >
+      ＋ Ajouter un prélèvement
+    </button>
 
-          <div class="summary">
+  `;
 
-            <div>
-              <strong>
-                ${escapeHTML(bill.name)}
-              </strong>
 
-              <small>
-                Tous les mois • le ${bill.day}
-              </small>
+  if (
+    data.bills.length === 0
+  ) {
+
+    html += `
+
+      <div class="panel">
+
+        <b>
+          Aucun prélèvement
+        </b>
+
+        <p class="muted">
+
+          Ajoute ici ton loyer,
+          assurance, abonnements,
+          etc.
+
+        </p>
+
+      </div>
+
+    `;
+
+
+    container.innerHTML =
+      html;
+
+
+    getElement(
+      "billAddButton"
+    )?.addEventListener(
+      "click",
+      openBillModal
+    );
+
+
+    return;
+
+  }
+
+
+  html +=
+
+    data.bills
+      .map(
+        bill => `
+
+          <div class="panel">
+
+            <div class="summary">
+
+              <div>
+
+                <strong>
+
+                  ${escapeHTML(
+                    bill.name
+                  )}
+
+                </strong>
+
+                <small>
+
+                  Tous les mois
+                  · jour ${bill.day}
+
+                </small>
+
+              </div>
+
+
+              <div>
+
+                <strong>
+
+                  -${money(
+                    bill.amount
+                  )}
+
+                </strong>
+
+                <small>
+
+                  ${
+                    bill.active
+                      ? "Actif"
+                      : "Désactivé"
+                  }
+
+                </small>
+
+              </div>
+
             </div>
 
-            <div>
-              <strong>
-                ${money(bill.amount)}
-              </strong>
 
-              <small>
-                ${bill.active ? "Actif" : "Terminé"}
-              </small>
-            </div>
+            <button
+              class="danger bill-delete"
+              data-id="${escapeHTML(
+                bill.id
+              )}"
+            >
+              Supprimer
+            </button>
 
           </div>
 
-          <button
-            class="danger bill-delete"
-            data-id="${escapeHTML(bill.id)}"
-          >
-            Supprimer
-          </button>
+        `
+      )
+      .join("");
 
-        </div>
 
-      `
-    ).join("");
+  container.innerHTML =
+    html;
+
+
+  getElement(
+    "billAddButton"
+  )?.addEventListener(
+    "click",
+    openBillModal
+  );
 
 
   container
-    .querySelectorAll(".bill-delete")
+    .querySelectorAll(
+      ".bill-delete"
+    )
     .forEach(button => {
 
       button.addEventListener(
         "click",
-        () => deleteBill(
-          button.dataset.id
-        )
+        () => {
+
+          deleteBill(
+            button.dataset.id
+          );
+
+        }
       );
 
     });
@@ -1619,31 +1997,64 @@ function renderBills() {
 }
 
 
+/* =========================================================
+   AJOUT PRELEVEMENT
+   ========================================================= */
+
 function openBillModal() {
 
   const modal =
     getElement("modal");
 
-  const content =
-    getElement("modalContent");
 
-  if (!modal || !content) return;
+  const content =
+    getElement(
+      "modalContent"
+    );
+
+
+  if (
+    !modal ||
+    !content
+  ) {
+
+    return;
+
+  }
 
 
   content.innerHTML = `
 
+    <div class="modalhead">
+
+      <h3>
+        Ajouter un prélèvement
+      </h3>
+
+      <button
+        id="dynamicClose"
+      >
+        ✕
+      </button>
+
+    </div>
+
+
     <label>
-      Nom du prélèvement
+
+      Nom
 
       <input
         id="billName"
         type="text"
         placeholder="Ex. Loyer"
       >
+
     </label>
 
 
     <label>
+
       Montant (€)
 
       <input
@@ -1651,11 +2062,14 @@ function openBillModal() {
         type="number"
         step="0.01"
         inputmode="decimal"
+        placeholder="250"
       >
+
     </label>
 
 
     <label>
+
       Jour du mois
 
       <input
@@ -1665,6 +2079,7 @@ function openBillModal() {
         max="31"
         value="5"
       >
+
     </label>
 
 
@@ -1672,71 +2087,105 @@ function openBillModal() {
       class="primary"
       id="confirmBill"
     >
+
       Ajouter
+
     </button>
 
   `;
 
 
-  modal.classList.remove("hidden");
+  modal.classList.remove(
+    "hidden"
+  );
 
 
-  getElement("confirmBill")
-    ?.addEventListener(
-      "click",
-      () => {
-
-        const name =
-          getElement("billName").value.trim();
-
-        const amount =
-          numberValue(
-            getElement("billAmount").value
-          );
-
-        const day =
-          Math.min(
-            31,
-            Math.max(
-              1,
-              Number(
-                getElement("billDay").value
-              ) || 1
-            )
-          );
+  getElement(
+    "dynamicClose"
+  )?.addEventListener(
+    "click",
+    closeModal
+  );
 
 
-        if (!name || amount <= 0) return;
+  getElement(
+    "confirmBill"
+  )?.addEventListener(
+    "click",
+    () => {
+
+      const name =
+        getElement(
+          "billName"
+        ).value.trim();
 
 
-        data.bills.push({
-
-          id:
-            "bill_" + Date.now(),
-
-          name,
-
-          amount,
-
-          day,
-
-          active: true
-
-        });
+      const amount =
+        numberValue(
+          getElement(
+            "billAmount"
+          ).value
+        );
 
 
-        saveData();
+      const day =
+        Math.min(
+          31,
+          Math.max(
+            1,
+            Number(
+              getElement(
+                "billDay"
+              ).value
+            ) || 1
+          )
+        );
 
-        closeModal();
 
-        render();
+      if (
+        !name ||
+        amount <= 0
+      ) {
 
-        renderBills();
+        alert(
+          "Indique un nom et un montant valide."
+        );
 
-        renderCalendar();
+        return;
 
       }
-    );
+
+
+      data.bills.push({
+
+        id:
+          "bill_" +
+          Date.now(),
+
+        name,
+
+        amount,
+
+        day,
+
+        active:
+          true
+
+      });
+
+
+      saveData();
+
+      closeModal();
+
+      renderHome();
+
+      renderBills();
+
+      renderCalendar();
+
+    }
+  );
 
 }
 
@@ -1749,9 +2198,10 @@ function deleteBill(id) {
         bill.id !== id
     );
 
+
   saveData();
 
-  render();
+  renderHome();
 
   renderBills();
 
@@ -1767,29 +2217,42 @@ function deleteBill(id) {
 function renderCredits() {
 
   const container =
-    getElement("creditList");
+    getElement(
+      "creditList"
+    );
 
-  if (!container) return;
+
+  if (!container) {
+
+    return;
+
+  }
 
 
-  const totalMonthly =
+  const monthly =
     creditMonthlyTotal();
 
-  const totalDebt =
+
+  const debt =
     creditDebtTotal();
 
 
   const totalElement =
-    getElement("creditTotal");
+    getElement(
+      "creditTotal"
+    );
+
 
   const debtElement =
-    getElement("debtTotal");
+    getElement(
+      "debtTotal"
+    );
 
 
   if (totalElement) {
 
     totalElement.textContent =
-      money(totalMonthly);
+      money(monthly);
 
   }
 
@@ -1797,95 +2260,141 @@ function renderCredits() {
   if (debtElement) {
 
     debtElement.textContent =
-      money(totalDebt);
+      money(debt);
 
   }
 
 
-  if (data.credits.length === 0) {
+  let html = "";
 
-    container.innerHTML = `
+
+  if (
+    data.credits.length === 0
+  ) {
+
+    html = `
+
       <div class="panel">
-        <b>Aucun crédit</b>
-        <p class="muted">
-          Tu pourras ajouter un crédit ici.
-        </p>
-        <button
-          class="primary"
-          id="addCreditButton"
-        >
-          ＋ Ajouter un crédit
-        </button>
+
+        <b>
+          Aucun crédit en cours
+        </b>
+
       </div>
+
     `;
 
-    getElement("addCreditButton")
-      ?.addEventListener(
-        "click",
-        openCreditModal
-      );
+  }
 
-    return;
+  else {
+
+    html =
+      data.credits
+        .map(
+          credit => `
+
+            <div class="panel">
+
+              <div class="summary">
+
+                <div>
+
+                  <strong>
+
+                    ${escapeHTML(
+                      credit.name
+                    )}
+
+                  </strong>
+
+                  <small>
+
+                    ${
+                      credit.remaining
+                    }
+                    mensualités restantes
+
+                  </small>
+
+                </div>
+
+
+                <div>
+
+                  <strong>
+
+                    ${money(
+                      credit.monthly
+                    )}
+                    /mois
+
+                  </strong>
+
+                  <small>
+
+                    Reste environ
+                    ${money(
+                      credit.monthly *
+                      credit.remaining
+                    )}
+
+                  </small>
+
+                </div>
+
+              </div>
+
+
+              <button
+                class="danger credit-delete"
+                data-id="${escapeHTML(
+                  credit.id
+                )}"
+              >
+
+                Supprimer
+
+              </button>
+
+            </div>
+
+          `
+        )
+        .join("");
 
   }
+
+
+  html += `
+
+    <button
+      class="primary"
+      id="creditAddButton"
+    >
+
+      ＋ Ajouter un crédit
+
+    </button>
+
+  `;
 
 
   container.innerHTML =
-    data.credits.map(
-      credit => `
-
-        <div class="panel">
-
-          <div class="summary">
-
-            <div>
-
-              <strong>
-                ${escapeHTML(credit.name)}
-              </strong>
-
-              <small>
-                ${credit.remaining}
-                mensualités restantes
-              </small>
-
-            </div>
+    html;
 
 
-            <div>
-
-              <strong>
-                ${money(credit.monthly)}/mois
-              </strong>
-
-              <small>
-                ${money(
-                  credit.monthly *
-                  credit.remaining
-                )}
-                restant
-              </small>
-
-            </div>
-
-          </div>
-
-
-          <button
-            class="danger credit-delete"
-            data-id="${escapeHTML(credit.id)}"
-          >
-            Supprimer
-          </button>
-
-        </div>
-
-      `
-    ).join("");
+  getElement(
+    "creditAddButton"
+  )?.addEventListener(
+    "click",
+    openCreditModal
+  );
 
 
   container
-    .querySelectorAll(".credit-delete")
+    .querySelectorAll(
+      ".credit-delete"
+    )
     .forEach(button => {
 
       button.addEventListener(
@@ -1901,40 +2410,54 @@ function renderCredits() {
 
     });
 
-
-  const add =
-    document.createElement("button");
-
-  add.className =
-    "primary";
-
-  add.textContent =
-    "＋ Ajouter un crédit";
-
-  add.addEventListener(
-    "click",
-    openCreditModal
-  );
-
-  container.appendChild(add);
-
 }
 
+
+/* =========================================================
+   AJOUT CREDIT
+   ========================================================= */
 
 function openCreditModal() {
 
   const modal =
     getElement("modal");
 
-  const content =
-    getElement("modalContent");
 
-  if (!modal || !content) return;
+  const content =
+    getElement(
+      "modalContent"
+    );
+
+
+  if (
+    !modal ||
+    !content
+  ) {
+
+    return;
+
+  }
 
 
   content.innerHTML = `
 
+    <div class="modalhead">
+
+      <h3>
+        Ajouter un crédit
+      </h3>
+
+      <button
+        id="dynamicClose"
+      >
+        ✕
+      </button>
+
+    </div>
+
+
     <label>
+
       Nom du crédit
 
       <input
@@ -1942,10 +2465,12 @@ function openCreditModal() {
         type="text"
         placeholder="Ex. Téléphone"
       >
+
     </label>
 
 
     <label>
+
       Mensualité (€)
 
       <input
@@ -1953,11 +2478,14 @@ function openCreditModal() {
         type="number"
         step="0.01"
         inputmode="decimal"
+        placeholder="50"
       >
+
     </label>
 
 
     <label>
+
       Mensualités restantes
 
       <input
@@ -1966,6 +2494,22 @@ function openCreditModal() {
         min="1"
         value="12"
       >
+
+    </label>
+
+
+    <label>
+
+      Jour du prélèvement
+
+      <input
+        id="creditDay"
+        type="number"
+        min="1"
+        max="31"
+        value="5"
+      >
+
     </label>
 
 
@@ -1973,86 +2517,152 @@ function openCreditModal() {
       class="primary"
       id="confirmCredit"
     >
+
       Ajouter le crédit
+
     </button>
 
   `;
 
 
-  modal.classList.remove("hidden");
+  modal.classList.remove(
+    "hidden"
+  );
 
 
-  getElement("confirmCredit")
-    ?.addEventListener(
-      "click",
-      () => {
+  getElement(
+    "dynamicClose"
+  )?.addEventListener(
+    "click",
+    closeModal
+  );
 
-        const name =
-          getElement("creditName").value.trim();
 
-        const monthly =
-          numberValue(
-            getElement("creditMonthly").value
-          );
+  getElement(
+    "confirmCredit"
+  )?.addEventListener(
+    "click",
+    () => {
 
-        const remaining =
+      const name =
+        getElement(
+          "creditName"
+        ).value.trim();
+
+
+      const monthly =
+        numberValue(
+          getElement(
+            "creditMonthly"
+          ).value
+        );
+
+
+      const remaining =
+        Math.max(
+          1,
+          Number(
+            getElement(
+              "creditRemaining"
+            ).value
+          ) || 1
+        );
+
+
+      const day =
+        Math.min(
+          31,
           Math.max(
             1,
             Number(
-              getElement("creditRemaining").value
-            ) || 1
-          );
+              getElement(
+                "creditDay"
+              ).value
+            ) || 5
+          )
+        );
 
 
-        if (!name || monthly <= 0) return;
+      if (
+        !name ||
+        monthly <= 0
+      ) {
 
+        alert(
+          "Indique le nom et la mensualité du crédit."
+        );
 
-        data.credits.push({
-
-          id:
-            "credit_" + Date.now(),
-
-          name,
-
-          monthly,
-
-          remaining,
-
-          original:
-            monthly * remaining
-
-        });
-
-
-        saveData();
-
-        closeModal();
-
-        render();
-
-        renderCredits();
-
-        renderCalendar();
-
-        renderEvolution();
+        return;
 
       }
-    );
+
+
+      data.credits.push({
+
+        id:
+          "credit_" +
+          Date.now(),
+
+        name,
+
+        monthly,
+
+        remaining,
+
+        day
+
+      });
+
+
+      saveData();
+
+      closeModal();
+
+      renderHome();
+
+      renderCredits();
+
+      renderCalendar();
+
+      renderEvolution();
+
+    }
+  );
 
 }
 
 
 function deleteCredit(id) {
 
-  data.credits =
-    data.credits.filter(
+  const index =
+    data.credits.findIndex(
       credit =>
-        credit.id !== id
+        credit.id === id
     );
+
+
+  if (
+    index === -1
+  ) {
+
+    return;
+
+  }
+
+
+  const credit =
+    data.credits[index];
+
+
+  data.credits.splice(
+    index,
+    1
+  );
+
 
   saveData();
 
-  render();
+  renderHome();
 
   renderCredits();
 
@@ -2070,43 +2680,62 @@ function deleteCredit(id) {
 function renderCalendar() {
 
   const container =
-    getElement("calendarView");
+    getElement(
+      "calendarView"
+    );
 
-  if (!container) return;
+
+  if (!container) {
+
+    return;
+
+  }
 
 
-  const now =
+  const date =
     new Date();
 
+
   const year =
-    now.getFullYear();
+    date.getFullYear();
+
 
   const month =
-    now.getMonth();
+    date.getMonth();
 
-  const firstDay =
+
+  const first =
     new Date(
       year,
       month,
       1
-    ).getDay();
+    );
 
-  const daysInMonth =
+
+  const last =
     new Date(
       year,
       month + 1,
       0
-    ).getDate();
+    );
 
 
-  const offset =
-    firstDay === 0
+  let start =
+    first.getDay();
+
+
+  start =
+    start === 0
       ? 6
-      : firstDay - 1;
+      : start - 1;
+
+
+  const days =
+    last.getDate();
 
 
   const monthName =
-    now.toLocaleDateString(
+    date.toLocaleDateString(
       "fr-FR",
       {
         month: "long",
@@ -2117,36 +2746,66 @@ function renderCalendar() {
 
   let html = `
 
-    <div class="calendar">
+    <div class="panel">
 
       <h3>
-        📅 ${escapeHTML(
-          monthName.charAt(0).toUpperCase() +
+
+        📅 ${
+          monthName
+            .charAt(0)
+            .toUpperCase()
+          +
           monthName.slice(1)
-        )}
+        }
+
       </h3>
 
-      <div class="calendar-grid">
 
-        <div>Lun</div>
-        <div>Mar</div>
-        <div>Mer</div>
-        <div>Jeu</div>
-        <div>Ven</div>
-        <div>Sam</div>
-        <div>Dim</div>
+      <div
+        class="calendar-grid"
+      >
+
+        <div>
+          Lun
+        </div>
+
+        <div>
+          Mar
+        </div>
+
+        <div>
+          Mer
+        </div>
+
+        <div>
+          Jeu
+        </div>
+
+        <div>
+          Ven
+        </div>
+
+        <div>
+          Sam
+        </div>
+
+        <div>
+          Dim
+        </div>
 
   `;
 
 
   for (
     let i = 0;
-    i < offset;
+    i < start;
     i++
   ) {
 
     html += `
-      <div class="calendar-empty"></div>
+
+      <div></div>
+
     `;
 
   }
@@ -2154,54 +2813,80 @@ function renderCalendar() {
 
   for (
     let day = 1;
-    day <= daysInMonth;
+    day <= days;
     day++
   ) {
 
-    const date =
-      new Date(
-        year,
-        month,
-        day
-      );
-
-
     const iso =
-      `${year}-${String(month + 1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+      `${year}-${String(
+        month + 1
+      ).padStart(
+        2,
+        "0"
+      )}-${String(
+        day
+      ).padStart(
+        2,
+        "0"
+      )}`;
 
 
-    const expenses =
-      data.expenses.filter(
-        item =>
-          item.date === iso
-      );
+    const dayExpenses =
+      data.expenses
+        .filter(
+          expense =>
+            expense.date === iso
+        );
 
 
-    const incomes =
-      data.incomes.filter(
-        item =>
-          item.date === iso
-      );
+    const dayIncomes =
+      data.incomes
+        .filter(
+          income =>
+            income.date === iso
+        );
 
 
-    const bills =
-      data.bills.filter(
-        item =>
-          Number(item.day) === day &&
-          item.active
-      );
+    const dayBills =
+      data.bills
+        .filter(
+          bill =>
+            Number(
+              bill.day
+            ) === day &&
+            bill.active !== false
+        );
 
 
-    const today =
-      date.toDateString() ===
-      new Date().toDateString();
+    const dayCredits =
+      data.credits
+        .filter(
+          credit =>
+            Number(
+              credit.day || 5
+            ) === day &&
+            Number(
+              credit.remaining
+            ) > 0
+        );
+
+
+    const isToday =
+      new Date()
+        .getDate() === day &&
+      new Date()
+        .getMonth() === month &&
+      new Date()
+        .getFullYear() === year;
 
 
     html += `
 
       <div
-        class="calendar-day ${
-          today ? "today" : ""
+        class="${
+          isToday
+            ? "calendar-day today"
+            : "calendar-day"
         }"
       >
 
@@ -2209,47 +2894,130 @@ function renderCalendar() {
           ${day}
         </strong>
 
-        ${
-          incomes.length
-            ? `<span class="calendar-income">
-                +${money(
-                  incomes.reduce(
-                    (s,i) =>
-                      s + numberValue(i.amount),
-                    0
-                  )
-                )}
-              </span>`
-            : ""
-        }
+    `;
 
-        ${
-          expenses.length
-            ? `<span class="calendar-expense">
-                -${money(
-                  expenses.reduce(
-                    (s,e) =>
-                      s + numberValue(e.amount),
-                    0
-                  )
-                )}
-              </span>`
-            : ""
-        }
 
-        ${
-          bills.length
-            ? `<span class="calendar-bill">
-                -${money(
-                  bills.reduce(
-                    (s,b) =>
-                      s + numberValue(b.amount),
-                    0
-                  )
-                )}
-              </span>`
-            : ""
-        }
+    if (
+      dayIncomes.length
+    ) {
+
+      const total =
+        dayIncomes.reduce(
+          (sum, income) =>
+            sum +
+            numberValue(
+              income.amount
+            ),
+          0
+        );
+
+
+      html += `
+
+        <small
+          class="calendar-income"
+        >
+
+          +${money(total)}
+
+        </small>
+
+      `;
+
+    }
+
+
+    if (
+      dayExpenses.length
+    ) {
+
+      const total =
+        dayExpenses.reduce(
+          (sum, expense) =>
+            sum +
+            numberValue(
+              expense.amount
+            ),
+          0
+        );
+
+
+      html += `
+
+        <small
+          class="calendar-expense"
+        >
+
+          -${money(total)}
+
+        </small>
+
+      `;
+
+    }
+
+
+    if (
+      dayBills.length
+    ) {
+
+      const total =
+        dayBills.reduce(
+          (sum, bill) =>
+            sum +
+            numberValue(
+              bill.amount
+            ),
+          0
+        );
+
+
+      html += `
+
+        <small
+          class="calendar-bill"
+        >
+
+          -${money(total)}
+
+        </small>
+
+      `;
+
+    }
+
+
+    if (
+      dayCredits.length
+    ) {
+
+      const total =
+        dayCredits.reduce(
+          (sum, credit) =>
+            sum +
+            numberValue(
+              credit.monthly
+            ),
+          0
+        );
+
+
+      html += `
+
+        <small
+          class="calendar-credit"
+        >
+
+          -${money(total)}
+
+        </small>
+
+      `;
+
+    }
+
+
+    html += `
 
       </div>
 
@@ -2264,6 +3032,7 @@ function renderCalendar() {
 
     </div>
 
+
     <div class="panel">
 
       <b>
@@ -2271,9 +3040,15 @@ function renderCalendar() {
       </b>
 
       <p class="muted">
-        🟢 Revenus &nbsp;
-        🔴 Dépenses &nbsp;
+
+        🟢 Revenus
+        ·
+        🔴 Dépenses
+        ·
         🟠 Prélèvements
+        ·
+        💳 Crédits
+
       </p>
 
     </div>
@@ -2288,11 +3063,12 @@ function renderCalendar() {
 
 
 /* =========================================================
-   FIN DU BLOC 3
+   FIN DU BLOC 3/4
    ========================================================= */
 /* =========================================================
-   FINANCE QUEST — V2
-   BLOC 4/4 — EPARGNE, REVENUS, SIMULATION, EVOLUTION
+   FINANCE QUEST — VERSION STABLE
+   BLOC 4/4 — EPARGNE, REVENUS, SIMULATION, EVOLUTION,
+   PARAMETRES ET DEMARRAGE
    ========================================================= */
 
 
@@ -2303,30 +3079,44 @@ function renderCalendar() {
 function renderSavings() {
 
   const big =
-    getElement("savingBig");
+    getElement(
+      "savingBig"
+    );
 
   const list =
-    getElement("goalList");
+    getElement(
+      "goalList"
+    );
 
 
   if (big) {
 
     big.textContent =
-      money(data.savings);
+      money(
+        data.savings
+      );
 
   }
 
 
-  if (!list) return;
+  if (!list) {
+
+    return;
+
+  }
 
 
   const percent =
     data.savingsGoal > 0
+
       ? Math.min(
           100,
-          (data.savings /
-            data.savingsGoal) * 100
+          (
+            data.savings /
+            data.savingsGoal
+          ) * 100
         )
+
       : 0;
 
 
@@ -2338,25 +3128,40 @@ function renderSavings() {
         🎯 Objectif d'épargne
       </b>
 
+
       <div class="bar">
-        <i style="width:${percent}%"></i>
+
+        <i
+          style="width:${percent}%"
+        ></i>
+
       </div>
 
+
       <p>
+
         <strong>
-          ${money(data.savings)}
+          ${money(
+            data.savings
+          )}
         </strong>
 
         /
-        
-        ${money(data.savingsGoal)}
+
+        ${money(
+          data.savingsGoal
+        )}
+
       </p>
+
 
       <button
         class="primary"
         id="savingAction"
       >
+
         ＋ Modifier mon épargne
+
       </button>
 
     </div>
@@ -2364,11 +3169,12 @@ function renderSavings() {
   `;
 
 
-  getElement("savingAction")
-    ?.addEventListener(
-      "click",
-      openSavingModal
-    );
+  getElement(
+    "savingAction"
+  )?.addEventListener(
+    "click",
+    openSavingModal
+  );
 
 }
 
@@ -2376,17 +3182,46 @@ function renderSavings() {
 function openSavingModal() {
 
   const modal =
-    getElement("modal");
+    getElement(
+      "modal"
+    );
+
 
   const content =
-    getElement("modalContent");
+    getElement(
+      "modalContent"
+    );
 
-  if (!modal || !content) return;
+
+  if (
+    !modal ||
+    !content
+  ) {
+
+    return;
+
+  }
 
 
   content.innerHTML = `
 
+    <div class="modalhead">
+
+      <h3>
+        🎯 Épargne
+      </h3>
+
+      <button
+        id="dynamicClose"
+      >
+        ✕
+      </button>
+
+    </div>
+
+
     <label>
+
       Épargne actuelle (€)
 
       <input
@@ -2396,10 +3231,12 @@ function openSavingModal() {
         inputmode="decimal"
         value="${data.savings}"
       >
+
     </label>
 
 
     <label>
+
       Objectif (€)
 
       <input
@@ -2409,6 +3246,7 @@ function openSavingModal() {
         inputmode="decimal"
         value="${data.savingsGoal}"
       >
+
     </label>
 
 
@@ -2416,54 +3254,67 @@ function openSavingModal() {
       class="primary"
       id="confirmSaving"
     >
+
       Enregistrer
+
     </button>
 
   `;
 
 
-  modal.classList.remove("hidden");
+  modal.classList.remove(
+    "hidden"
+  );
 
 
-  getElement("confirmSaving")
-    ?.addEventListener(
-      "click",
-      () => {
-
-        data.savings =
-          Math.max(
-            0,
-            numberValue(
-              getElement(
-                "savingAmount"
-              ).value
-            )
-          );
+  getElement(
+    "dynamicClose"
+  )?.addEventListener(
+    "click",
+    closeModal
+  );
 
 
-        data.savingsGoal =
-          Math.max(
-            1,
-            numberValue(
-              getElement(
-                "savingGoal"
-              ).value
-            )
-          );
+  getElement(
+    "confirmSaving"
+  )?.addEventListener(
+    "click",
+    () => {
+
+      data.savings =
+        Math.max(
+          0,
+          numberValue(
+            getElement(
+              "savingAmount"
+            ).value
+          )
+        );
 
 
-        saveData();
+      data.savingsGoal =
+        Math.max(
+          1,
+          numberValue(
+            getElement(
+              "savingGoal"
+            ).value
+          )
+        );
 
-        closeModal();
 
-        render();
+      saveData();
 
-        renderSavings();
+      closeModal();
 
-        renderEvolution();
+      renderHome();
 
-      }
-    );
+      renderSavings();
+
+      renderEvolution();
+
+    }
+  );
 
 }
 
@@ -2472,86 +3323,62 @@ function openSavingModal() {
    REVENUS PONCTUELS
    ========================================================= */
 
-function addIncome(
-  label,
-  amount,
-  date = todayISO()
-) {
+function openIncomeModal() {
 
-  const value =
-    numberValue(amount);
+  const modal =
+    getElement(
+      "modal"
+    );
+
+
+  const content =
+    getElement(
+      "modalContent"
+    );
 
 
   if (
-    !label ||
-    value <= 0
+    !modal ||
+    !content
   ) {
 
-    return false;
+    return;
 
   }
 
 
-  data.incomes.push({
-
-    id:
-      "income_" + Date.now(),
-
-    label:
-      label.trim(),
-
-    amount:
-      value,
-
-    date,
-
-    received: true
-
-  });
-
-
-  data.balance +=
-    value;
-
-
-  addXP(10);
-
-  saveData();
-
-  render();
-
-  renderCalendar();
-
-  return true;
-
-}
-
-
-function openIncomeModal() {
-
-  const modal =
-    getElement("modal");
-
-  const content =
-    getElement("modalContent");
-
-  if (!modal || !content) return;
-
-
   content.innerHTML = `
 
+    <div class="modalhead">
+
+      <h3>
+        💶 Ajouter un revenu
+      </h3>
+
+      <button
+        id="dynamicClose"
+      >
+        ✕
+      </button>
+
+    </div>
+
+
     <label>
-      Origine du revenu
+
+      Origine
 
       <input
         id="incomeLabel"
         type="text"
-        placeholder="Ex. Vente Leboncoin"
+        placeholder="Ex. Vente d'un objet"
       >
+
     </label>
 
 
     <label>
+
       Montant (€)
 
       <input
@@ -2559,12 +3386,14 @@ function openIncomeModal() {
         type="number"
         step="0.01"
         inputmode="decimal"
-        placeholder="0,00"
+        placeholder="100"
       >
+
     </label>
 
 
     <label>
+
       Date
 
       <input
@@ -2572,6 +3401,7 @@ function openIncomeModal() {
         type="date"
         value="${todayISO()}"
       >
+
     </label>
 
 
@@ -2579,88 +3409,161 @@ function openIncomeModal() {
       class="primary"
       id="confirmIncome"
     >
-      ＋ Ajouter le revenu
+
+      Ajouter le revenu
+
     </button>
 
   `;
 
 
-  modal.classList.remove("hidden");
+  modal.classList.remove(
+    "hidden"
+  );
 
 
-  getElement("confirmIncome")
-    ?.addEventListener(
-      "click",
-      () => {
+  getElement(
+    "dynamicClose"
+  )?.addEventListener(
+    "click",
+    closeModal
+  );
 
-        const label =
-          getElement(
-            "incomeLabel"
-          ).value.trim();
 
-        const amount =
+  getElement(
+    "confirmIncome"
+  )?.addEventListener(
+    "click",
+    () => {
+
+      const label =
+        getElement(
+          "incomeLabel"
+        ).value.trim();
+
+
+      const amount =
+        numberValue(
           getElement(
             "incomeAmount"
-          ).value;
-
-        const date =
-          getElement(
-            "incomeDate"
-          ).value ||
-          todayISO();
+          ).value
+        );
 
 
-        if (
-          addIncome(
-            label,
-            amount,
-            date
-          )
-        ) {
+      const date =
+        getElement(
+          "incomeDate"
+        ).value ||
+        todayISO();
 
-          closeModal();
 
-        }
+      if (
+        !label ||
+        amount <= 0
+      ) {
+
+        alert(
+          "Indique une origine et un montant valide."
+        );
+
+        return;
 
       }
-    );
+
+
+      data.incomes.push({
+
+        id:
+          "income_" +
+          Date.now(),
+
+        label,
+
+        amount,
+
+        date,
+
+        received:
+          true
+
+      });
+
+
+      data.balance +=
+        amount;
+
+
+      addXP(10);
+
+      saveData();
+
+      closeModal();
+
+      renderHome();
+
+      renderCalendar();
+
+    }
+  );
 
 }
 
 
 /* =========================================================
-   SIMULATION FINANCIERE
+   SIMULATION
    ========================================================= */
 
 function openSimulationModal() {
 
   const modal =
-    getElement("modal");
+    getElement(
+      "modal"
+    );
+
 
   const content =
-    getElement("modalContent");
+    getElement(
+      "modalContent"
+    );
 
-  if (!modal || !content) return;
 
+  if (
+    !modal ||
+    !content
+  ) {
 
-  const currentForecast =
-    getMonthEndForecast();
+    return;
+
+  }
 
 
   content.innerHTML = `
 
-    <h3>
-      🔮 Simulation
-    </h3>
+    <div class="modalhead">
+
+      <h3>
+        🔮 Simulation financière
+      </h3>
+
+      <button
+        id="dynamicClose"
+      >
+        ✕
+      </button>
+
+    </div>
 
 
     <p class="muted">
-      Teste une modification sans
-      changer tes vraies données.
+
+      Teste un changement sans modifier
+      tes vraies données.
+
     </p>
 
 
     <label>
+
       Revenu supplémentaire (€)
 
       <input
@@ -2670,10 +3573,12 @@ function openSimulationModal() {
         inputmode="decimal"
         value="0"
       >
+
     </label>
 
 
     <label>
+
       Nouvelle dépense mensuelle (€)
 
       <input
@@ -2683,10 +3588,12 @@ function openSimulationModal() {
         inputmode="decimal"
         value="0"
       >
+
     </label>
 
 
     <label>
+
       Nouveau crédit — mensualité (€)
 
       <input
@@ -2696,11 +3603,13 @@ function openSimulationModal() {
         inputmode="decimal"
         value="0"
       >
+
     </label>
 
 
     <label>
-      Durée du nouveau crédit
+
+      Durée du crédit (mois)
 
       <input
         id="simMonths"
@@ -2708,27 +3617,18 @@ function openSimulationModal() {
         min="1"
         value="12"
       >
+
     </label>
 
 
-    <div class="panel">
-
-      <b>
-        Prévision actuelle
-      </b>
-
-      <strong>
-        ${money(currentForecast)}
-      </strong>
-
-    </div>
-
-
     <div
-      id="simulationResult"
       class="panel"
+      id="simulationResult"
     >
-      Entre tes chiffres pour simuler.
+
+      Entre tes chiffres puis appuie
+      sur Calculer.
+
     </div>
 
 
@@ -2736,20 +3636,33 @@ function openSimulationModal() {
       class="primary"
       id="calculateSimulation"
     >
+
       Calculer
+
     </button>
 
   `;
 
 
-  modal.classList.remove("hidden");
+  modal.classList.remove(
+    "hidden"
+  );
 
 
-  getElement("calculateSimulation")
-    ?.addEventListener(
-      "click",
-      calculateSimulation
-    );
+  getElement(
+    "dynamicClose"
+  )?.addEventListener(
+    "click",
+    closeModal
+  );
+
+
+  getElement(
+    "calculateSimulation"
+  )?.addEventListener(
+    "click",
+    calculateSimulation
+  );
 
 }
 
@@ -2802,17 +3715,18 @@ function calculateSimulation() {
     credit;
 
 
-  const currentCredits =
+  const currentCreditLoad =
     creditMonthlyTotal();
 
 
-  const newCredits =
-    currentCredits +
+  const newCreditLoad =
+    currentCreditLoad +
     credit;
 
 
   const difference =
-    newForecast - current;
+    newForecast -
+    current;
 
 
   const result =
@@ -2821,53 +3735,88 @@ function calculateSimulation() {
     );
 
 
-  if (!result) return;
+  if (!result) {
+
+    return;
+
+  }
 
 
   result.innerHTML = `
 
     <b>
-      Résultat de la simulation
+      Résultat
     </b>
 
+
     <p>
+
       Prévision actuelle :
+
       <strong>
         ${money(current)}
       </strong>
+
     </p>
 
+
     <p>
+
       Nouvelle prévision :
+
       <strong>
         ${money(newForecast)}
       </strong>
+
     </p>
 
+
     <p>
+
       Impact :
+
       <strong>
-        ${difference >= 0 ? "+" : ""}
-        ${money(difference)}
+
+        ${
+          difference >= 0
+            ? "+"
+            : ""
+        }${money(difference)}
+
       </strong>
+
     </p>
+
 
     ${
       credit > 0
+
         ? `
-          <p>
-            💳 Charge de crédits :
-            <strong>
-              ${money(newCredits)}/mois
-            </strong>
-          </p>
 
           <p>
-            ⏳ Nouveau crédit :
-            ${months} mensualités
+
+            💳 Total des crédits :
+
+            <strong>
+              ${money(
+                newCreditLoad
+              )}/mois
+            </strong>
+
           </p>
+
+
+          <p>
+
+            ⏳ Le nouveau crédit
+            durerait ${months} mois.
+
+          </p>
+
         `
+
         : ""
+
     }
 
   `;
@@ -2876,7 +3825,7 @@ function calculateSimulation() {
 
 
 /* =========================================================
-   EVOLUTION / LIBERTE FINANCIERE
+   EVOLUTION FINANCIERE
    ========================================================= */
 
 function renderEvolution() {
@@ -2886,21 +3835,26 @@ function renderEvolution() {
       "evolutionView"
     );
 
-  if (!container) return;
 
+  if (!container) {
 
-  const monthlyCredits =
-    creditMonthlyTotal();
+    return;
+
+  }
 
 
   const debt =
     creditDebtTotal();
 
 
+  const monthlyCredits =
+    creditMonthlyTotal();
+
+
   const savings =
-    numberValue(
+    Number(
       data.savings
-    );
+    ) || 0;
 
 
   const freedom =
@@ -2908,13 +3862,13 @@ function renderEvolution() {
     debt;
 
 
-  const creditPercent =
-    debt > 0
-      ? Math.min(
-          100,
-          debt / 100
-        )
-      : 0;
+  const finishedCredits =
+    data.credits.filter(
+      credit =>
+        Number(
+          credit.remaining
+        ) <= 0
+    ).length;
 
 
   container.innerHTML = `
@@ -2930,17 +3884,13 @@ function renderEvolution() {
       </h3>
 
       <p class="muted">
-        Charge mensuelle :
-        ${money(monthlyCredits)}
-      </p>
 
-      <div class="bar">
-        <i
-          style="
-            width:${creditPercent}%;
-          "
-        ></i>
-      </div>
+        Charge mensuelle :
+        ${money(
+          monthlyCredits
+        )}
+
+      </p>
 
     </div>
 
@@ -2956,8 +3906,12 @@ function renderEvolution() {
       </h3>
 
       <p class="muted">
+
         Objectif :
-        ${money(data.savingsGoal)}
+        ${money(
+          data.savingsGoal
+        )}
+
       </p>
 
     </div>
@@ -2974,7 +3928,9 @@ function renderEvolution() {
       </h3>
 
       <p class="muted">
+
         Épargne − dette restante
+
       </p>
 
     </div>
@@ -2983,39 +3939,78 @@ function renderEvolution() {
     <div class="panel">
 
       <b>
-        📉 Prochaines fins de crédits
+        🟠 Crédits terminés
+      </b>
+
+      <h3>
+        ${finishedCredits}
+      </h3>
+
+      <p class="muted">
+
+        Les crédits disparaîtront
+        automatiquement lorsqu'ils
+        arriveront à zéro.
+
+      </p>
+
+    </div>
+
+
+    <div class="panel">
+
+      <b>
+        📊 Prochaines échéances
       </b>
 
       ${
         data.credits.length
+
           ? data.credits
               .slice()
               .sort(
-                (a,b) =>
-                  a.remaining -
-                  b.remaining
+                (a, b) =>
+                  Number(
+                    a.remaining
+                  ) -
+                  Number(
+                    b.remaining
+                  )
               )
-              .slice(0,3)
+              .slice(0, 4)
               .map(
                 credit => `
+
                   <p>
+
                     ${escapeHTML(
                       credit.name
                     )}
-                    :
+
+                    —
+
                     <strong>
+
                       ${credit.remaining}
                       mois
+
                     </strong>
+
                   </p>
+
                 `
               )
               .join("")
+
           : `
-              <p class="muted">
-                Aucun crédit en cours.
-              </p>
-            `
+
+            <p class="muted">
+
+              Aucun crédit en cours.
+
+            </p>
+
+          `
       }
 
     </div>
@@ -3032,22 +4027,46 @@ function renderEvolution() {
 function openSettings() {
 
   const modal =
-    getElement("modal");
+    getElement(
+      "modal"
+    );
+
 
   const content =
-    getElement("modalContent");
+    getElement(
+      "modalContent"
+    );
 
-  if (!modal || !content) return;
+
+  if (
+    !modal ||
+    !content
+  ) {
+
+    return;
+
+  }
 
 
   content.innerHTML = `
 
-    <h3>
-      ⚙️ Paramètres
-    </h3>
+    <div class="modalhead">
+
+      <h3>
+        ⚙️ Paramètres
+      </h3>
+
+      <button
+        id="dynamicClose"
+      >
+        ✕
+      </button>
+
+    </div>
 
 
     <label>
+
       Solde actuel (€)
 
       <input
@@ -3056,42 +4075,55 @@ function openSettings() {
         step="0.01"
         value="${data.balance}"
       >
+
     </label>
 
 
     <label>
+
       Salaire Europcar (€)
 
       <input
         id="settingSalary1"
         type="number"
         step="0.01"
-        value="${data.settings.salaryEuropcar}"
+        value="${
+          data.settings.salaryEuropcar
+        }"
       >
+
     </label>
 
 
     <label>
+
       Salaire Domino's (€)
 
       <input
         id="settingSalary2"
         type="number"
         step="0.01"
-        value="${data.settings.salaryDominos}"
+        value="${
+          data.settings.salaryDominos
+        }"
       >
+
     </label>
 
 
     <label>
-      Objectif épargne (€)
+
+      Objectif d'épargne (€)
 
       <input
         id="settingGoal"
         type="number"
         step="0.01"
-        value="${data.savingsGoal}"
+        value="${
+          data.savingsGoal
+        }"
       >
+
     </label>
 
 
@@ -3099,7 +4131,9 @@ function openSettings() {
       class="primary"
       id="saveSettings"
     >
-      Enregistrer les paramètres
+
+      Enregistrer
+
     </button>
 
 
@@ -3107,7 +4141,9 @@ function openSettings() {
       class="primary"
       id="addIncomeSettings"
     >
+
       💶 Ajouter un revenu ponctuel
+
     </button>
 
   `;
@@ -3118,109 +4154,126 @@ function openSettings() {
   );
 
 
-  getElement("saveSettings")
-    ?.addEventListener(
-      "click",
-      () => {
+  getElement(
+    "dynamicClose"
+  )?.addEventListener(
+    "click",
+    closeModal
+  );
 
-        data.balance =
+
+  getElement(
+    "saveSettings"
+  )?.addEventListener(
+    "click",
+    () => {
+
+      data.balance =
+        numberValue(
+          getElement(
+            "settingBalance"
+          ).value
+        );
+
+
+      data.settings.salaryEuropcar =
+        numberValue(
+          getElement(
+            "settingSalary1"
+          ).value
+        );
+
+
+      data.settings.salaryDominos =
+        numberValue(
+          getElement(
+            "settingSalary2"
+          ).value
+        );
+
+
+      data.savingsGoal =
+        Math.max(
+          1,
           numberValue(
             getElement(
-              "settingBalance"
+              "settingGoal"
             ).value
-          );
+          )
+        );
 
 
-        data.settings.salaryEuropcar =
-          numberValue(
-            getElement(
-              "settingSalary1"
-            ).value
-          );
+      saveData();
+
+      closeModal();
+
+      renderHome();
+
+      renderSavings();
+
+      renderEvolution();
+
+    }
+  );
 
 
-        data.settings.salaryDominos =
-          numberValue(
-            getElement(
-              "settingSalary2"
-            ).value
-          );
-
-
-        data.savingsGoal =
-          Math.max(
-            1,
-            numberValue(
-              getElement(
-                "settingGoal"
-              ).value
-            )
-          );
-
-
-        saveData();
-
-        closeModal();
-
-        render();
-
-        renderSavings();
-
-      }
-    );
-
-
-  getElement("addIncomeSettings")
-    ?.addEventListener(
-      "click",
-      openIncomeModal
-    );
+  getElement(
+    "addIncomeSettings"
+  )?.addEventListener(
+    "click",
+    openIncomeModal
+  );
 
 }
 
 
 /* =========================================================
-   INITIALISATION
+   BOUTONS ET EVENEMENTS
    ========================================================= */
 
-function setupSettings() {
+function setupEvents() {
 
-  getElement("settings")
-    ?.addEventListener(
-      "click",
-      openSettings
-    );
-
-
-  getElement("add")
-    ?.addEventListener(
-      "click",
-      openExpenseModal
-    );
+  getElement(
+    "settings"
+  )?.addEventListener(
+    "click",
+    openSettings
+  );
 
 
-  getElement("close")
-    ?.addEventListener(
-      "click",
-      closeModal
-    );
+  getElement(
+    "add"
+  )?.addEventListener(
+    "click",
+    openExpenseModal
+  );
 
 
-  getElement("modal")
-    ?.addEventListener(
-      "click",
-      event => {
+  getElement(
+    "close"
+  )?.addEventListener(
+    "click",
+    closeModal
+  );
 
-        if (
-          event.target.id === "modal"
-        ) {
 
-          closeModal();
+  getElement(
+    "modal"
+  )?.addEventListener(
+    "click",
+    event => {
 
-        }
+      if (
+        event.target.id ===
+        "modal"
+      ) {
+
+        closeModal();
 
       }
-    );
+
+    }
+  );
 
 
   getElement(
@@ -3249,26 +4302,13 @@ function setupSettings() {
 }
 
 
-function render() {
-
-  updateLevel();
-
-  renderHome();
-
-}
-
-
 /* =========================================================
    DEMARRAGE
    ========================================================= */
 
-function init() {
+function renderAll() {
 
-  setupNavigation();
-
-  setupSettings();
-
-  render();
+  renderHome();
 
   renderExpenses();
 
@@ -3285,6 +4325,17 @@ function init() {
 }
 
 
+function initFinanceQuest() {
+
+  setupNavigation();
+
+  setupEvents();
+
+  renderAll();
+
+}
+
+
 /* =========================================================
    LANCEMENT
    ========================================================= */
@@ -3296,16 +4347,19 @@ if (
 
   document.addEventListener(
     "DOMContentLoaded",
-    init
+    initFinanceQuest
   );
 
-} else {
+}
 
-  init();
+else {
+
+  initFinanceQuest();
 
 }
 
 
 /* =========================================================
-   FINANCE QUEST V2 — FIN DU FICHIER
+   FINANCE QUEST — FIN DU BLOC 4/4
    ========================================================= */
+
