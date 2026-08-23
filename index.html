@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#08111f">
-<title>Finance Quest V4.4</title>
+<title>Finance Quest V4.4.3</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="stylesheet" href="style.css">
 </head>
@@ -26,7 +26,7 @@
   <div class="panel"><div class="panel-title">📊 Résumé du mois</div><div class="summary-grid">
     <div>Dépenses<strong id="monthExpenses">0,00 €</strong></div>
     <div>Revenus<strong id="monthIncome">0,00 €</strong></div>
-    <div>Crédits<strong id="creditMonthlyTotal">0,00 €</strong></div>
+    <div>Dette totale<strong id="debtTotalHome">0,00 €</strong></div>
     <div>Épargne<strong id="savingsTotal">0,00 €</strong></div>
   </div></div>
   <div class="panel"><div class="panel-title">🔮 Projection sur 6 mois</div><div id="projectionMini"></div></div>
@@ -36,7 +36,6 @@
   <div class="section-head"><h2>📅 Calendrier</h2></div>
   <div class="calendar-card">
     <div class="calendar-nav"><button id="prevMonth" class="small-btn">‹</button><strong id="calendarTitle"></strong><button id="nextMonth" class="small-btn">›</button></div>
-    <div class="weekdays"><span>Lun</span><span>Mar</span><span>Mer</span><span>Jeu</span><span>Ven</span><span>Sam</span><span>Dim</span></div>
     <div id="calendarGrid" class="calendar-grid"></div>
   </div>
   <div class="legend"><span>🟢 Revenus</span><span>🔴 Dépenses</span><span>🟠 Crédits / prélèvements</span><span>🔵 Débit différé</span></div>
@@ -90,6 +89,6 @@
     <div id="modalBody"></div>
   </div>
 </div>
-<script src="app.js?v=4.4"></script>
+<script src="app.js?v=4.4.3"></script>
 </body>
 </html>

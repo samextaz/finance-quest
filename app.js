@@ -310,7 +310,8 @@ function renderHome() {
   $("billsPending").textContent = money(billsDueNowOrLater());
   $("monthExpenses").textContent = money(monthExpenses());
   $("monthIncome").textContent = money(monthIncomeReceived());
-  $("creditMonthlyTotal").textContent = money(monthlyCredits());
+  if ($("debtTotalHome")) $("debtTotalHome").textContent = money(debtRemaining());
+  if ($("creditMonthlyTotal")) $("creditMonthlyTotal").textContent = money(monthlyCredits());
   $("savingsTotal").textContent = money(state.savings);
   $("projectionMini").innerHTML = projection(6).map(r => `<div class="projection-row"><span>${esc(r.label)}</span><strong>${money(r.balance)}</strong><span>${money(r.credits)}/mois</span></div>`).join("");
   const f = forecast();
@@ -359,18 +360,21 @@ function dayEvents(date) {
 }
 function renderCalendar() {
   const y = viewMonth.getFullYear(), m = viewMonth.getMonth();
-  const first = new Date(y, m, 1), last = new Date(y, m + 1, 0);
-  const offset = (first.getDay() + 6) % 7;
+  const last = new Date(y, m + 1, 0);
   $("calendarTitle").textContent = monthLabel(viewMonth);
   let html = "";
-  for (let i = 0; i < offset; i++) html += `<div class="calendar-blank"></div>`;
   for (let d = 1; d <= last.getDate(); d++) {
     const date = new Date(y, m, d), today = iso(date) === todayKey(), ev = dayEvents(date);
-    html += `<button class="calendar-day ${today ? "today" : ""}" data-date="${iso(date)}"><span class="calendar-day-number">${d}</span>${ev.slice(0, 5).map(e => `<span class="event event-${e.type}">${e.text}</span>`).join("")}</button>`;
+    const weekday = date.toLocaleDateString("fr-FR", { weekday: "short" }).replace(".", "");
+    const eventsHtml = ev.length
+      ? ev.slice(0, 5).map(e => `<span class="event event-${e.type}">${e.text}</span>`).join("")
+      : `<span class="calendar-empty">Aucune opération</span>`;
+    html += `<button class="calendar-day vertical-day ${today ? "today" : ""}" data-date="${iso(date)}"><span class="calendar-date"><span class="calendar-weekday">${weekday}</span><span class="calendar-day-number">${d}</span></span><span class="calendar-events">${eventsHtml}</span></button>`;
   }
   $("calendarGrid").innerHTML = html;
   document.querySelectorAll("[data-date]").forEach(b => b.onclick = () => openDay(b.dataset.date, false));
 }
+
 function openDay(dateKey, fromCredits = false) {
   const date = localDate(dateKey), events = dayEvents(date);
   const eventHtml = events.length ? events.map(e => `<div class="day-event-row"><strong>${e.text}</strong><span class="muted">${esc(e.detail || e.name || "")}</span></div>`).join("") : `<p class="muted">Aucune opération.</p>`;
