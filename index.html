@@ -3,15 +3,18 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#08111f">
-<title>Finance Quest V4.4.3</title>
+<meta name="theme-color" content="#0b0b0f">
+<title>Finance Quest V4.3.1</title>
 <link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-beta-2.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Finance Quest">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <header class="topbar">
-  <div><h1>🏆 Finance Quest</h1><p>Ton argent. Tes règles. Ton avenir.</p></div>
-  <button id="settingsBtn" class="icon-btn">⚙️</button>
+  <div><h1>Finance Quest</h1><p>Ton argent. Tes règles. Ton avenir.</p></div>
+  <div class="top-actions"><button id="themeToggle" class="icon-btn" aria-label="Activer le mode clair" title="Mode clair">☀︎</button><button id="settingsBtn" class="icon-btn" aria-label="Paramètres">⚙︎</button></div>
 </header>
 <main>
 <section id="homeScreen" class="screen active">
@@ -26,15 +29,15 @@
   <div class="panel"><div class="panel-title">📊 Résumé du mois</div><div class="summary-grid">
     <div>Dépenses<strong id="monthExpenses">0,00 €</strong></div>
     <div>Revenus<strong id="monthIncome">0,00 €</strong></div>
-    <div>Dette totale<strong id="debtTotalHome">0,00 €</strong></div>
+    <div>Dettes restantes<strong id="debtRemainingTotal">0,00 €</strong></div>
     <div>Épargne<strong id="savingsTotal">0,00 €</strong></div>
   </div></div>
   <div class="panel"><div class="panel-title">🔮 Projection sur 6 mois</div><div id="projectionMini"></div></div>
 </section>
 
 <section id="calendarScreen" class="screen">
-  <div class="section-head"><h2>📅 Calendrier</h2></div>
-  <div class="calendar-card">
+  <div class="section-head"><h2>📅 Calendrier</h2><button id="todayBtn" class="small-btn">Aujourd'hui</button></div>
+  <div class="calendar-card calendar-list-card">
     <div class="calendar-nav"><button id="prevMonth" class="small-btn">‹</button><strong id="calendarTitle"></strong><button id="nextMonth" class="small-btn">›</button></div>
     <div id="calendarGrid" class="calendar-grid"></div>
   </div>
@@ -42,7 +45,7 @@
 </section>
 
 <section id="creditsScreen" class="screen">
-  <div class="section-head"><h2>🏦 Crédits</h2><button id="addCreditBtn" class="primary-btn">＋ Crédit</button></div>
+  <div class="section-head"><h2>🏦 Crédits</h2><div class="section-actions"><button id="resetCreditsBtn" class="danger">Effacer les crédits</button><button id="addCreditBtn" class="primary-btn">＋ Crédit</button></div></div>
   <div class="panel"><div class="summary-grid">
     <div>Mensualités<strong id="creditsMonthlySummary">0,00 €</strong></div>
     <div>Dette restante<strong id="debtSummary">0,00 €</strong></div>
@@ -50,17 +53,6 @@
     <div>Terminés<strong id="completedCreditCount">0</strong></div>
   </div></div>
   <div id="creditList"></div><div id="completedCreditList"></div>
-</section>
-
-<section id="subscriptionsScreen" class="screen">
-  <div class="section-head"><h2>🔄 Abonnements</h2><button id="addSubscriptionBtn" class="primary-btn">＋ Abonnement</button></div>
-  <div class="panel"><div class="summary-grid">
-    <div>Total / mois<strong id="subscriptionMonthlySummary">0,00 €</strong></div>
-    <div>Total / an<strong id="subscriptionAnnualSummary">0,00 €</strong></div>
-    <div>Abonnements actifs<strong id="activeSubscriptionCount">0</strong></div>
-    <div>Équivalent mensuel<strong id="subscriptionEquivalent">0,00 €</strong></div>
-  </div></div>
-  <div id="subscriptionList"></div>
 </section>
 
 <section id="evolutionScreen" class="screen">
@@ -79,7 +71,6 @@
   <button data-screen="homeScreen" class="nav-btn active">🏠<small>Accueil</small></button>
   <button data-screen="calendarScreen" class="nav-btn">📅<small>Calendrier</small></button>
   <button data-screen="creditsScreen" class="nav-btn">🏦<small>Crédits</small></button>
-  <button data-screen="subscriptionsScreen" class="nav-btn">🔄<small>Abonnements</small></button>
   <button data-screen="evolutionScreen" class="nav-btn">📈<small>Évolution</small></button>
 </nav>
 
@@ -89,6 +80,6 @@
     <div id="modalBody"></div>
   </div>
 </div>
-<script src="app.js?v=4.4.3"></script>
+<script src="app.js?v=4.3.3"></script>
 </body>
 </html>
