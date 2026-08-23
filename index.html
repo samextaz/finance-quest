@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#08111f">
-<title>Finance Quest V4.2</title>
+<title>Finance Quest V4.3</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="stylesheet" href="style.css">
 </head>
@@ -23,14 +23,13 @@
     <div class="card cyan"><span>💶 Revenus à recevoir</span><strong id="incomePending">0,00 €</strong></div>
     <div class="card orange"><span>📤 À payer</span><strong id="billsPending">0,00 €</strong></div>
   </div>
-  <div class="panel"><div class="panel-title">🗽 Liberté financière</div><div class="big-stat" id="freedomIndex">0 %</div><div class="muted" id="freedomText">Ajoute tes données pour commencer.</div></div>
   <div class="panel"><div class="panel-title">📊 Résumé du mois</div><div class="summary-grid">
     <div>Dépenses<strong id="monthExpenses">0,00 €</strong></div>
     <div>Revenus<strong id="monthIncome">0,00 €</strong></div>
     <div>Crédits<strong id="creditMonthlyTotal">0,00 €</strong></div>
     <div>Épargne<strong id="savingsTotal">0,00 €</strong></div>
   </div></div>
-  <div class="panel"><div class="panel-title">🔮 Projection</div><div id="projectionMini"></div></div>
+  <div class="panel"><div class="panel-title">🔮 Projection sur 6 mois</div><div id="projectionMini"></div></div>
 </section>
 
 <section id="calendarScreen" class="screen">
@@ -57,7 +56,7 @@
 <section id="evolutionScreen" class="screen">
   <div class="section-head"><h2>📈 Évolution</h2><button id="simulateBtn" class="primary-btn">🔮 Simuler</button></div>
   <div class="view-tabs">
-    <button data-view="freedom" class="view-tab active">🗽 Liberté</button>
+    <button data-view="balance" class="view-tab active">💰 Solde</button>
     <button data-view="credits" class="view-tab">🔴 Crédits</button>
     <button data-view="savings" class="view-tab">🟢 Épargne</button>
   </div>
@@ -79,6 +78,6 @@
     <div id="modalBody"></div>
   </div>
 </div>
-<script src="app.js"></script>
+<script src="app.js?v=4.3"></script>
 </body>
 </html>
