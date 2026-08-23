@@ -366,6 +366,10 @@ function show(id) {
   document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
   $(id)?.classList.add("active");
   document.querySelectorAll(".nav-btn").forEach(b => b.classList.toggle("active", b.dataset.screen === id));
+  // Always refresh the screen being displayed. Without this, returning to
+  // Accueil after adding/editing a credit or subscription could show the
+  // old cached values (notably Dette totale and Dépenses).
+  if (id === "homeScreen") renderHome();
   if (id === "calendarScreen") renderCalendar();
   if (id === "creditsScreen") renderCredits();
   if (id === "subscriptionsScreen") renderSubscriptions();
