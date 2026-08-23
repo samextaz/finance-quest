@@ -399,51 +399,44 @@ function totalRemainingCreditDebt() {
 }
 
 function totalMonthlyOutflowsForSummary(year, month) {
-  const monthStart = new Date(year, month, 1);
+  const monthStart = new Date(year, month, 1, 0, 0, 0);
   const monthEnd = new Date(year, month + 1, 0, 23, 59, 59);
   let total = 0;
 
-  // Direct expenses recorded in the calendar.
+  // 1) Dépenses saisies directement dans le calendrier.
+  // Le mode de paiement ne change pas le fait qu'il s'agit d'une dépense
+  // du mois : débit immédiat ET débit différé sont comptabilisés ici.
   state.expenses.forEach(e => {
     if (!e.date) return;
     const d = localDate(e.date);
-    if (!d || d < monthStart || d > monthEnd) return;
-    total += num(e.amount);
+    if (d >= monthStart && d <= monthEnd) total += num(e.amount);
   });
 
-  // Credit installments that are actually scheduled in this month.
+  // 2) Mensualités de crédits prévues pendant le mois.
+  // Ne pas utiliser de ledger externe ici : les crédits de Finance Quest
+  // sont déterminés directement par startDate + nombre de mensualités.
   state.credits.forEach(c => {
     if (!c || c.completed === true || c.active === false) return;
-    ensureCreditLedger(c);
-    let counted = false;
-    (c.ledger || []).forEach(item => {
-      if (!item.date || item.paid === false) return;
-      const d = localDate(item.date);
-      if (d && d.getFullYear() === year && d.getMonth() === month) {
-        total += num(item.amount != null ? item.amount : c.monthly);
-        counted = true;
-      }
-    });
-    if (!counted && c.nextPaymentDate) {
-      const d = localDate(c.nextPaymentDate);
-      if (d && d.getFullYear() === year && d.getMonth() === month) {
-        total += num(c.monthly);
-      }
+    const totalMonths = creditTotalMonths(c);
+    for (let i = 1; i <= totalMonths; i++) {
+      const d = creditInstallmentDate(c, i);
+      if (d >= monthStart && d <= monthEnd) total += num(c.monthly);
     }
   });
 
-  // Recurring subscriptions/bills due in this month.
-  state.subscriptions.forEach(s => {
-    if (s.active === false || !s.amount) return;
-    const day = Math.max(1, Math.min(31, Number(s.day || 1)));
-    const d = new Date(year, month, Math.min(day, new Date(year, month + 1, 0).getDate()));
-    if (d >= monthStart && d <= monthEnd) total += num(s.amount);
+  // 3) Abonnements actifs prélevés pendant le mois.
+  state.subscriptions.forEach(sub => {
+    if (!sub || sub.active === false || !num(sub.amount)) return;
+    const d = subscriptionDueDateForMonth(sub, year, month);
+    if (d && d >= monthStart && d <= monthEnd) total += num(sub.amount);
   });
 
+  // 4) Prélèvements récurrents actifs pendant le mois.
   state.bills.forEach(b => {
-    if (b.active === false || !b.amount) return;
-    const day = Math.max(1, Math.min(31, Number(b.day || 1)));
-    const d = new Date(year, month, Math.min(day, new Date(year, month + 1, 0).getDate()));
+    if (!b || b.active === false || !num(b.amount)) return;
+    const day = Math.max(1, Math.min(31, Math.round(num(b.day) || 1)));
+    const lastDay = new Date(year, month + 1, 0).getDate();
+    const d = new Date(year, month, Math.min(day, lastDay), 12);
     if (d >= monthStart && d <= monthEnd) total += num(b.amount);
   });
 
