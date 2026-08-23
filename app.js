@@ -14,7 +14,8 @@ const DEFAULT = {
     salaryEuropcar: 0,
     salaryDominos: 0,
     ticketsRestaurant: 0,
-    monthProgressKey: ""
+    monthProgressKey: "",
+    startingBalance: null
   }
 };
 
@@ -96,6 +97,12 @@ function upgradeStoredState() {
       changed = true;
     }
   });
+  if (state.settings.startingBalance === null || state.settings.startingBalance === undefined) {
+    // Conserve exactement le solde des anciennes données, tout en créant une
+    // base séparée pour les prochaines modifications du solde de départ.
+    state.settings.startingBalance = num(state.balance) - recordedCalendarImpact();
+    changed = true;
+  }
   if (changed) save();
 }
 function merge(a, b) {
@@ -136,6 +143,23 @@ function deferredDebitDate(expense) {
   if (expense.deferredDebitDate) return expense.deferredDebitDate;
   const date = localDate(expense.date);
   return iso(new Date(date.getFullYear(), date.getMonth() + 1, 0, 12));
+}
+function recordedCalendarImpact() {
+  const incomes = state.incomes.reduce((sum, income) => {
+    if (income.type === "oneoff" && income.received) return sum + num(income.amount);
+    if (income.type === "recurrent" && income.lastAppliedMonth) return sum + num(income.amount);
+    return sum;
+  }, 0);
+  const expenses = state.expenses.filter(expense => expense.balanceApplied).reduce((sum, expense) => sum + num(expense.amount), 0);
+  const credits = state.credits.reduce((sum, credit) => {
+    ensureCreditLedger(credit);
+    return sum + num(credit.monthly) * credit.appliedInstallments.length;
+  }, 0);
+  const bills = state.bills.filter(bill => bill.lastAppliedMonth).reduce((sum, bill) => sum + num(bill.amount), 0);
+  return incomes - expenses - credits - bills;
+}
+function rebuildBalanceFromCalendar() {
+  state.balance = num(state.settings.startingBalance) + recordedCalendarImpact();
 }
 
 /* =============================
@@ -258,6 +282,7 @@ function setup() {
   $("nextMonth").onclick = () => { viewMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 1); renderCalendar(); };
   $("todayBtn").onclick = () => { viewMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1); renderCalendar(); };
   $("addCreditBtn").onclick = () => openDay(todayKey(), true);
+  $("resetCreditsBtn").onclick = resetCredits;
   $("modalClose").onclick = closeModal;
   $("modal").onclick = e => { if (e.target === $("modal")) closeModal(); };
   document.querySelectorAll(".view-tab").forEach(b => b.onclick = () => { chartMode = b.dataset.view; renderEvolution(); });
@@ -466,6 +491,21 @@ function editCredit(id) {
     save(); closeModal(); renderAll();
   };
 }
+function resetCredits() {
+  if (!state.credits.length) return alert("Aucun crédit à effacer.");
+  const firstWarning = confirm("Effacer tous les crédits enregistrés ? Les échéances disparaîtront aussi du calendrier.");
+  if (!firstWarning) return;
+  const finalWarning = confirm("Dernière confirmation : cette action supprime tous les crédits. Continuer ?");
+  if (!finalWarning) return;
+  const appliedTotal = state.credits.reduce((sum, credit) => {
+    ensureCreditLedger(credit);
+    return sum + num(credit.monthly) * credit.appliedInstallments.length;
+  }, 0);
+  state.balance += appliedTotal;
+  state.credits = [];
+  save();
+  renderAll();
+}
 
 /* =============================
    ÉVOLUTION / PROJECTION
@@ -531,9 +571,8 @@ function drawChart() {
    PARAMÈTRES / SIMULATION
    ============================= */
 function settingsModal() {
-  openModal("⚙️ Paramètres", `<div class="form-group"><label>Solde bancaire réel (€)</label><input id="sb" type="number" step="0.01" value="${state.balance}"></div><div class="form-group"><label>Découvert autorisé (€)</label><input id="so" type="number" step="0.01" value="${state.settings.overdraft}"></div><p class="muted">Les salaires et revenus se saisissent désormais dans le calendrier afin de respecter leurs vraies dates. Cette page sert principalement à corriger le solde bancaire réel.</p><div class="form-actions"><button class="primary" id="saveSet">Enregistrer</button><button class="danger" id="resetAll">Tout remettre à zéro</button></div>`);
-  $("saveSet").onclick = () => { state.balance = num($("sb").value); state.settings.overdraft = num($("so").value); save(); closeModal(); renderAll(); };
-  $("resetAll").onclick = () => { if (confirm("Effacer toutes les données ?")) { state = clone(DEFAULT); save(); closeModal(); renderAll(); } };
+  openModal("⚙️ Paramètres", `<div class="form-group"><label>Solde de départ (€)</label><input id="sb" type="number" step="0.01" value="${num(state.settings.startingBalance)}"></div><div class="form-group"><label>Découvert autorisé (€)</label><input id="so" type="number" step="0.01" value="${state.settings.overdraft}"></div><p class="muted">Indique le solde avant les opérations du calendrier. Finance Quest y ajoute ou retire ensuite les revenus, dépenses, prélèvements et échéances déjà dus.</p><div class="form-actions"><button class="primary" id="saveSet">Enregistrer</button></div>`);
+  $("saveSet").onclick = () => { state.settings.startingBalance = num($("sb").value); state.settings.overdraft = num($("so").value); rebuildBalanceFromCalendar(); save(); closeModal(); renderAll(); };
 }
 function simulation() {
   openModal("🔮 Simulation", `<div class="form-group"><label>Revenu ponctuel (€)</label><input id="si" type="number" step="0.01" value="0"></div><div class="form-group"><label>Dépense immédiate (€)</label><input id="sx" type="number" step="0.01" value="0"></div><div class="form-group"><label>Nouveau crédit — mensualité (€)</label><input id="sc" type="number" step="0.01" value="0"></div><div class="form-group"><label>Durée (mois)</label><input id="sm" type="number" min="1" value="4"></div><div id="sr" class="sim-card">Entre les valeurs puis calcule.</div><button class="primary" id="goSim">Calculer</button>`);
