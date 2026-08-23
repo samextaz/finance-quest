@@ -239,8 +239,9 @@ function recurringBillsThroughMonth(endDate) {
   const now = new Date();
   return state.bills.filter(b => b.active !== false).reduce((sum, b) => {
     const due = recurringDateForMonth(b.day, now.getFullYear(), now.getMonth());
-    const started = !b.startDate || b.startDate <= todayKey();
-    return sum + (started && iso(due) > todayKey() && due <= endDate ? num(b.amount) : 0);
+    // A subscription already paid today/past is already included in state.balance.
+    // A subscription scheduled for later this month must be included in the forecast.
+    return sum + (iso(due) > todayKey() && due <= endDate ? num(b.amount) : 0);
   }, 0);
 }
 function oneOffIncomeThroughMonth(endDate) { return futureOneOffIncomeThrough(endDate); }
