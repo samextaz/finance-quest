@@ -1,4 +1,4 @@
-const KEY = "financeQuest_v4_3";
+const KEY = "financeQuest_v4_4";
 const DEFAULT = {
   balance: 0,
   savings: 0,
@@ -168,21 +168,26 @@ function activeSubscriptions() { return state.subscriptions.filter(s => s.active
 function subscriptionsMonthlyTotal() { return activeSubscriptions().reduce((s, sub) => s + subscriptionMonthlyEquivalent(sub), 0); }
 function subscriptionsAnnualTotal() { return activeSubscriptions().reduce((s, sub) => s + subscriptionAnnualCost(sub), 0); }
 function subscriptionsThrough(endDate) {
-  const start = new Date(); start.setHours(12,0,0,0);
+  const now = new Date(); now.setHours(12,0,0,0);
+  const today = todayKey();
   return activeSubscriptions().reduce((sum, sub) => {
-    const s = localDate(sub.startDate || todayKey());
+    const s = localDate(sub.startDate || today);
     if (s > endDate) return sum;
     let total = 0;
     if (sub.frequency === "yearly") {
       for (let y = s.getFullYear(); y <= endDate.getFullYear(); y++) {
         const d = new Date(y, s.getMonth(), Math.min(s.getDate(), new Date(y, s.getMonth()+1,0).getDate()), 12);
-        if (d > start && d <= endDate) total += num(sub.amount);
+        const key = iso(d);
+        // Only future instalments belong in the forecast. A due date already applied
+        // to the real balance must never be counted a second time.
+        if (d > now && d <= endDate && key !== sub.lastAppliedDue) total += num(sub.amount);
       }
     } else {
-      let cursor = new Date(Math.max(s.getTime(), new Date(start.getFullYear(), start.getMonth(), 1, 12).getTime()));
+      let cursor = new Date(s.getFullYear(), s.getMonth(), 1, 12);
       for (let i=0; i<120 && cursor <= endDate; i++) {
         const d = new Date(cursor.getFullYear(), cursor.getMonth(), Math.min(s.getDate(), new Date(cursor.getFullYear(), cursor.getMonth()+1,0).getDate()), 12);
-        if (d > start && d <= endDate && d >= s) total += num(sub.amount);
+        const key = iso(d);
+        if (d > now && d <= endDate && d >= s && key !== sub.lastAppliedDue) total += num(sub.amount);
         cursor = new Date(cursor.getFullYear(), cursor.getMonth()+1, 1, 12);
       }
     }
