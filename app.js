@@ -288,7 +288,7 @@ function renderHome() {
   $("billsPending").textContent = money(billsDueNowOrLater());
   $("monthExpenses").textContent = money(monthExpenses());
   $("monthIncome").textContent = money(monthIncomeReceived());
-  $("creditMonthlyTotal").textContent = money(monthlyCredits());
+  $("debtRemainingTotal").textContent = money(debtRemaining());
   $("savingsTotal").textContent = money(state.savings);
   $("projectionMini").innerHTML = projection(6).map(r => `<div class="projection-row"><span>${esc(r.label)}</span><strong>${money(r.balance)}</strong><span>${money(r.credits)}/mois</span></div>`).join("");
   const f = forecast();
