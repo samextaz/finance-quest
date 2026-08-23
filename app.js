@@ -1,5 +1,4 @@
 const KEY = "financeQuest_v4_3";
-const THEME_KEY = "financeQuest_theme";
 const DEFAULT = {
   balance: 0,
   savings: 0,
@@ -10,18 +9,17 @@ const DEFAULT = {
   expenses: [],
   incomes: [],
   completedCredits: [],
+  subscriptions: [],
   settings: {
     overdraft: 100,
     salaryEuropcar: 0,
     salaryDominos: 0,
     ticketsRestaurant: 0,
-    monthProgressKey: "",
-    startingBalance: null
+    monthProgressKey: ""
   }
 };
 
 let state = load();
-upgradeStoredState();
 settleDueOperations();
 let viewMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 let chartMode = "balance";
@@ -37,39 +35,22 @@ function settleDueOperations() {
       i.received = true;
       changed = true;
     }
-    if (i.type === "recurrent") {
-      const due = recurringDateForMonth(i.day, today.getFullYear(), today.getMonth());
-      if (iso(due) <= tk && i.lastAppliedMonth !== monthKey(today)) {
-        state.balance += num(i.amount);
-        i.lastAppliedMonth = monthKey(today);
-        changed = true;
-      }
-    }
-  });
-  state.expenses.forEach(e => {
-    const due = e.payment === "deferred" ? deferredDebitDate(e) : e.date;
-    if (due && due <= tk && !e.balanceApplied) {
-      state.balance -= num(e.amount);
-      e.balanceApplied = true;
-      changed = true;
-    }
-  });
-  state.credits.forEach(c => {
-    ensureCreditLedger(c);
-    for (let i = 1; i <= creditTotalMonths(c); i++) {
-      if (iso(creditInstallmentDate(c, i)) <= tk && !c.appliedInstallments.includes(i)) {
-        state.balance -= num(c.monthly);
-        c.appliedInstallments.push(i);
-        changed = true;
-      }
-    }
   });
   const currentMonth = monthKey(today);
   state.bills.forEach(b => {
-    const due = recurringDateForMonth(b.day, today.getFullYear(), today.getMonth());
-    if (b.active !== false && iso(due) <= tk && b.lastAppliedMonth !== currentMonth) {
+    const day = Math.min(31, Math.max(1, Math.round(num(b.day))));
+    if (b.active !== false && today.getDate() >= day && b.lastAppliedMonth !== currentMonth) {
       state.balance -= num(b.amount);
       b.lastAppliedMonth = currentMonth;
+      changed = true;
+    }
+  });
+  state.subscriptions.forEach(sub => {
+    if (sub.active === false || !sub.startDate) return;
+    const due = subscriptionDueOnOrBeforeToday(sub);
+    if (due && due <= todayKey() && sub.lastAppliedDue !== due) {
+      state.balance -= num(sub.amount);
+      sub.lastAppliedDue = due;
       changed = true;
     }
   });
@@ -82,30 +63,6 @@ function load() {
     return x ? merge(clone(DEFAULT), JSON.parse(x)) : clone(DEFAULT);
   } catch (_) { return clone(DEFAULT); }
 }
-function upgradeStoredState() {
-  let changed = false;
-  state.expenses.forEach(e => {
-    // Les versions précédentes débitaient déjà toute dépense immédiate datée
-    // d'aujourd'hui ou du passé au moment de sa création.
-    if (e.payment !== "deferred" && e.balanceApplied === undefined && e.date <= todayKey()) {
-      e.balanceApplied = true;
-      changed = true;
-    }
-  });
-  state.credits.forEach(c => {
-    if (!Array.isArray(c.appliedInstallments)) {
-      c.appliedInstallments = c.balanceAdjustedForFirstPayment ? [1] : [];
-      changed = true;
-    }
-  });
-  if (state.settings.startingBalance === null || state.settings.startingBalance === undefined) {
-    // Conserve exactement le solde des anciennes données, tout en créant une
-    // base séparée pour les prochaines modifications du solde de départ.
-    state.settings.startingBalance = num(state.balance) - recordedCalendarImpact();
-    changed = true;
-  }
-  if (changed) save();
-}
 function merge(a, b) {
   return {
     ...a,
@@ -115,7 +72,8 @@ function merge(a, b) {
     credits: Array.isArray(b.credits) ? b.credits : [],
     expenses: Array.isArray(b.expenses) ? b.expenses : [],
     incomes: Array.isArray(b.incomes) ? b.incomes : [],
-    completedCredits: Array.isArray(b.completedCredits) ? b.completedCredits : []
+    completedCredits: Array.isArray(b.completedCredits) ? b.completedCredits : [],
+    subscriptions: Array.isArray(b.subscriptions) ? b.subscriptions : []
   };
 }
 function save() { localStorage.setItem(KEY, JSON.stringify(state)); }
@@ -135,33 +93,6 @@ const MONTHS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet"
 function monthLabel(d) { return MONTHS[d.getMonth()] + " " + d.getFullYear(); }
 function monthKey(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; }
 function sameMonth(key, d) { const x = localDate(key); return x.getFullYear() === d.getFullYear() && x.getMonth() === d.getMonth(); }
-function recurringDateForMonth(day, year, month) {
-  const safeDay = Math.min(31, Math.max(1, Math.round(num(day))));
-  const lastDay = new Date(year, month + 1, 0).getDate();
-  return new Date(year, month, Math.min(safeDay, lastDay), 12);
-}
-function deferredDebitDate(expense) {
-  if (expense.deferredDebitDate) return expense.deferredDebitDate;
-  const date = localDate(expense.date);
-  return iso(new Date(date.getFullYear(), date.getMonth() + 1, 0, 12));
-}
-function recordedCalendarImpact() {
-  const incomes = state.incomes.reduce((sum, income) => {
-    if (income.type === "oneoff" && income.received) return sum + num(income.amount);
-    if (income.type === "recurrent" && income.lastAppliedMonth) return sum + num(income.amount);
-    return sum;
-  }, 0);
-  const expenses = state.expenses.filter(expense => expense.balanceApplied).reduce((sum, expense) => sum + num(expense.amount), 0);
-  const credits = state.credits.reduce((sum, credit) => {
-    ensureCreditLedger(credit);
-    return sum + num(credit.monthly) * credit.appliedInstallments.length;
-  }, 0);
-  const bills = state.bills.filter(bill => bill.lastAppliedMonth).reduce((sum, bill) => sum + num(bill.amount), 0);
-  return incomes - expenses - credits - bills;
-}
-function rebuildBalanceFromCalendar() {
-  state.balance = num(state.settings.startingBalance) + recordedCalendarImpact();
-}
 
 /* =============================
    CRÉDITS / ÉCHÉANCES
@@ -175,14 +106,10 @@ function addMonthsPreserveDay(date, months) {
   return new Date(base.getFullYear(), targetMonth, Math.min(date.getDate(), lastDay), 12);
 }
 function creditInstallmentDate(c, index) { return addMonthsPreserveDay(creditStart(c), index - 1); }
-function ensureCreditLedger(c) {
-  if (!Array.isArray(c.appliedInstallments)) c.appliedInstallments = c.balanceAdjustedForFirstPayment ? [1] : [];
-}
 function creditPaidCount(c, asOf = new Date()) {
   const total = creditTotalMonths(c);
   let paid = 0;
-  const asOfKey = iso(asOf);
-  for (let i = 1; i <= total; i++) if (iso(creditInstallmentDate(c, i)) <= asOfKey) paid++;
+  for (let i = 1; i <= total; i++) if (creditInstallmentDate(c, i) <= asOf) paid++;
   return Math.min(total, paid);
 }
 function creditStatus(c, asOf = new Date()) {
@@ -204,6 +131,66 @@ function creditFutureInstallmentsThrough(c, startDate, endDate) {
 }
 
 /* =============================
+   ABONNEMENTS
+   ============================= */
+function subscriptionFrequencyLabel(f) { return f === "yearly" ? "annuel" : "mensuel"; }
+function subscriptionDueDateForMonth(sub, year, month) {
+  const start = localDate(sub.startDate || todayKey());
+  if (sub.frequency === "yearly" && (year < start.getFullYear() || (year === start.getFullYear() && month < start.getMonth()))) return null;
+  if (sub.frequency === "monthly" && new Date(year, month + 1, 0).getTime() < new Date(start.getFullYear(), start.getMonth(), 1).getTime()) return null;
+  if (sub.frequency === "yearly" && year === start.getFullYear() && month < start.getMonth()) return null;
+  if (sub.frequency === "yearly" && month !== start.getMonth()) return null;
+  const day = Math.min(start.getDate(), new Date(year, month + 1, 0).getDate());
+  const d = new Date(year, month, day, 12);
+  return d >= start ? d : null;
+}
+function subscriptionDueOnOrBeforeToday(sub) {
+  const today = new Date();
+  const start = localDate(sub.startDate || todayKey());
+  if (start > today) return null;
+  if (sub.frequency === "yearly") {
+    let year = today.getFullYear();
+    let d = new Date(year, start.getMonth(), Math.min(start.getDate(), new Date(year, start.getMonth()+1, 0).getDate()), 12);
+    if (d > today) year--;
+    d = new Date(year, start.getMonth(), Math.min(start.getDate(), new Date(year, start.getMonth()+1, 0).getDate()), 12);
+    if (d < start) return null;
+    return iso(d);
+  }
+  const day = Math.min(start.getDate(), new Date(today.getFullYear(), today.getMonth()+1, 0).getDate());
+  let d = new Date(today.getFullYear(), today.getMonth(), day, 12);
+  if (d > today) d = new Date(today.getFullYear(), today.getMonth()-1, Math.min(start.getDate(), new Date(today.getFullYear(), today.getMonth(), 0).getDate()), 12);
+  if (d < start) return null;
+  return iso(d);
+}
+function subscriptionMonthlyEquivalent(sub) { return sub.frequency === "yearly" ? num(sub.amount) / 12 : num(sub.amount); }
+function subscriptionAnnualCost(sub) { return sub.frequency === "yearly" ? num(sub.amount) : num(sub.amount) * 12; }
+function activeSubscriptions() { return state.subscriptions.filter(s => s.active !== false); }
+function subscriptionsMonthlyTotal() { return activeSubscriptions().reduce((s, sub) => s + subscriptionMonthlyEquivalent(sub), 0); }
+function subscriptionsAnnualTotal() { return activeSubscriptions().reduce((s, sub) => s + subscriptionAnnualCost(sub), 0); }
+function subscriptionsThrough(endDate) {
+  const start = new Date(); start.setHours(12,0,0,0);
+  return activeSubscriptions().reduce((sum, sub) => {
+    const s = localDate(sub.startDate || todayKey());
+    if (s > endDate) return sum;
+    let total = 0;
+    if (sub.frequency === "yearly") {
+      for (let y = s.getFullYear(); y <= endDate.getFullYear(); y++) {
+        const d = new Date(y, s.getMonth(), Math.min(s.getDate(), new Date(y, s.getMonth()+1,0).getDate()), 12);
+        if (d >= start && d <= endDate) total += num(sub.amount);
+      }
+    } else {
+      let cursor = new Date(Math.max(s.getTime(), new Date(start.getFullYear(), start.getMonth(), 1, 12).getTime()));
+      for (let i=0; i<120 && cursor <= endDate; i++) {
+        const d = new Date(cursor.getFullYear(), cursor.getMonth(), Math.min(s.getDate(), new Date(cursor.getFullYear(), cursor.getMonth()+1,0).getDate()), 12);
+        if (d >= start && d <= endDate && d >= s) total += num(sub.amount);
+        cursor = new Date(cursor.getFullYear(), cursor.getMonth()+1, 1, 12);
+      }
+    }
+    return sum + total;
+  }, 0);
+}
+
+/* =============================
    OPÉRATIONS / CALCULS
    ============================= */
 function recurringBills() { return state.bills.filter(b => b.active !== false).reduce((s, b) => s + num(b.amount), 0); }
@@ -211,17 +198,8 @@ function recurringIncome() { return state.incomes.filter(i => i.type === "recurr
 function futureOneOffIncomeThrough(endDate) {
   return state.incomes.filter(i => i.type === "oneoff" && i.date > todayKey() && localDate(i.date) <= endDate).reduce((s, i) => s + num(i.amount), 0);
 }
-function recurringIncomeThroughMonth(endDate) {
-  const now = new Date();
-  return state.incomes.filter(i => i.type === "recurrent").reduce((sum, i) => {
-    const due = recurringDateForMonth(i.day, now.getFullYear(), now.getMonth());
-    return sum + (iso(due) > todayKey() && due <= endDate ? num(i.amount) : 0);
-  }, 0);
-}
 function pendingIncome() {
-  const oneOff = state.incomes.filter(i => i.type === "oneoff" && i.date && i.date > todayKey()).reduce((s, i) => s + num(i.amount), 0);
-  const end = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0, 12);
-  return oneOff + recurringIncomeThroughMonth(end);
+  return state.incomes.filter(i => i.date && i.date > todayKey()).reduce((s, i) => s + num(i.amount), 0);
 }
 function monthExpenses() {
   const n = new Date();
@@ -229,16 +207,17 @@ function monthExpenses() {
 }
 function monthDeferred() {
   const n = new Date();
-  return state.expenses.filter(e => e.payment === "deferred" && !e.balanceApplied && sameMonth(e.date, n)).reduce((s, e) => s + num(e.amount), 0);
+  return state.expenses.filter(e => e.payment === "deferred" && sameMonth(e.date, n)).reduce((s, e) => s + num(e.amount), 0);
 }
 function futureDeferredThrough(endDate) {
-  return state.expenses.filter(e => e.payment === "deferred" && !e.balanceApplied && deferredDebitDate(e) > todayKey() && localDate(deferredDebitDate(e)) <= endDate).reduce((s, e) => s + num(e.amount), 0);
+  return state.expenses.filter(e => e.payment === "deferred" && e.date >= todayKey() && localDate(e.date) <= endDate).reduce((s, e) => s + num(e.amount), 0);
 }
 function recurringBillsThroughMonth(endDate) {
   const now = new Date();
   return state.bills.filter(b => b.active !== false).reduce((sum, b) => {
-    const due = recurringDateForMonth(b.day, now.getFullYear(), now.getMonth());
-    return sum + (iso(due) > todayKey() && due <= endDate ? num(b.amount) : 0);
+    const day = Math.min(31, Math.max(1, Math.round(num(b.day))));
+    const due = new Date(now.getFullYear(), now.getMonth(), day, 12);
+    return sum + (due > now && due <= endDate ? num(b.amount) : 0);
   }, 0);
 }
 function oneOffIncomeThroughMonth(endDate) { return futureOneOffIncomeThrough(endDate); }
@@ -253,22 +232,27 @@ function forecast() {
   const end = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0, 12);
   return num(state.balance)
     + oneOffIncomeThroughMonth(end)
-    + recurringIncomeThroughMonth(end)
     - recurringBillsThroughMonth(end)
     - futureCreditThrough(end)
     - futureDeferredThrough(end)
-    - futureImmediateExpensesThrough(end);
+    - futureImmediateExpensesThrough(end)
+    - subscriptionsThrough(end);
 }
 function billsDueNowOrLater() {
   const now = new Date();
-  const billTotal = state.bills.filter(b => b.active !== false && iso(recurringDateForMonth(b.day, now.getFullYear(), now.getMonth())) > todayKey()).reduce((s, b) => s + num(b.amount), 0);
+  const day = now.getDate();
+  const billTotal = state.bills.filter(b => b.active !== false && num(b.day) > day).reduce((s, b) => s + num(b.amount), 0);
   const creditTotal = state.credits.reduce((s, c) => s + creditFutureInstallmentsThrough(c, now, new Date(now.getFullYear(), now.getMonth() + 1, 0, 12)), 0);
-  const deferred = state.expenses.filter(e => e.payment === "deferred" && !e.balanceApplied && deferredDebitDate(e) > todayKey() && sameMonth(deferredDebitDate(e), now)).reduce((s, e) => s + num(e.amount), 0);
-  return billTotal + creditTotal + deferred;
+  const deferred = state.expenses.filter(e => e.payment === "deferred" && e.date >= todayKey() && sameMonth(e.date, now)).reduce((s, e) => s + num(e.amount), 0);
+  const subTotal = activeSubscriptions().reduce((s, sub) => {
+    const d = subscriptionDueDateForMonth(sub, now.getFullYear(), now.getMonth());
+    return s + (d && d >= now ? num(sub.amount) : 0);
+  }, 0);
+  return billTotal + creditTotal + deferred + subTotal;
 }
 function monthIncomeReceived() {
   const n = new Date();
-  return state.incomes.filter(i => (i.type === "recurrent" && i.lastAppliedMonth === monthKey(n)) || (i.type !== "recurrent" && sameMonth(i.date, n) && i.date <= todayKey())).reduce((s, i) => s + num(i.amount), 0);
+  return state.incomes.filter(i => sameMonth(i.date, n) && i.date <= todayKey()).reduce((s, i) => s + num(i.amount), 0);
 }
 function monthCreditTotal() { return state.credits.reduce((s, c) => s + (creditStatus(c).paid > 0 && sameMonth(iso(creditStart(c)), new Date()) ? 0 : 0), 0); }
 
@@ -276,19 +260,28 @@ function monthCreditTotal() { return state.credits.reduce((s, c) => s + (creditS
    NAVIGATION
    ============================= */
 function setup() {
-  setupTheme();
   document.querySelectorAll(".nav-btn").forEach(b => b.onclick = () => show(b.dataset.screen));
   $("settingsBtn").onclick = settingsModal;
-  $("themeToggle").onclick = toggleTheme;
   $("simulateBtn").onclick = simulation;
   $("prevMonth").onclick = () => { viewMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() - 1, 1); renderCalendar(); };
   $("nextMonth").onclick = () => { viewMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 1); renderCalendar(); };
-  $("todayBtn").onclick = () => { viewMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1); renderCalendar(); };
   $("addCreditBtn").onclick = () => openDay(todayKey(), true);
-  $("resetCreditsBtn").onclick = resetCredits;
+  $("addSubscriptionBtn").onclick = () => openOperation(todayKey());
   $("modalClose").onclick = closeModal;
   $("modal").onclick = e => { if (e.target === $("modal")) closeModal(); };
   document.querySelectorAll(".view-tab").forEach(b => b.onclick = () => { chartMode = b.dataset.view; renderEvolution(); });
+  let touchStartX = null, touchStartY = null;
+  const cal = $("calendarGrid");
+  cal.addEventListener("touchstart", e => { const t=e.changedTouches[0]; touchStartX=t.clientX; touchStartY=t.clientY; }, {passive:true});
+  cal.addEventListener("touchend", e => {
+    if (touchStartX === null) return;
+    const t=e.changedTouches[0], dx=t.clientX-touchStartX, dy=t.clientY-touchStartY;
+    touchStartX=touchStartY=null;
+    if (Math.abs(dx) > 55 && Math.abs(dx) > Math.abs(dy)*1.3) {
+      viewMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() + (dx < 0 ? 1 : -1), 1);
+      renderCalendar();
+    }
+  }, {passive:true});
 }
 function show(id) {
   document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
@@ -296,6 +289,7 @@ function show(id) {
   document.querySelectorAll(".nav-btn").forEach(b => b.classList.toggle("active", b.dataset.screen === id));
   if (id === "calendarScreen") renderCalendar();
   if (id === "creditsScreen") renderCredits();
+  if (id === "subscriptionsScreen") renderSubscriptions();
   if (id === "evolutionScreen") renderEvolution();
 }
 function openModal(title, body) {
@@ -304,27 +298,6 @@ function openModal(title, body) {
   $("modal").classList.remove("hidden");
 }
 function closeModal() { $("modal").classList.add("hidden"); $("modalBody").innerHTML = ""; }
-function setupTheme() {
-  let theme = "dark";
-  try { theme = localStorage.getItem(THEME_KEY) || "dark"; } catch (_) {}
-  applyTheme(theme);
-}
-function applyTheme(theme) {
-  const isLight = theme === "light";
-  document.documentElement.dataset.theme = isLight ? "light" : "dark";
-  const button = $("themeToggle");
-  if (button) {
-    button.textContent = isLight ? "☾" : "☀︎";
-    button.setAttribute("aria-label", isLight ? "Activer le mode sombre" : "Activer le mode clair");
-    button.title = isLight ? "Mode sombre" : "Mode clair";
-  }
-  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", isLight ? "#f2f2f7" : "#0b0b0f");
-}
-function toggleTheme() {
-  const next = document.documentElement.dataset.theme === "light" ? "dark" : "light";
-  try { localStorage.setItem(THEME_KEY, next); } catch (_) {}
-  applyTheme(next);
-}
 
 /* =============================
    ACCUEIL
@@ -337,7 +310,7 @@ function renderHome() {
   $("billsPending").textContent = money(billsDueNowOrLater());
   $("monthExpenses").textContent = money(monthExpenses());
   $("monthIncome").textContent = money(monthIncomeReceived());
-  $("debtRemainingTotal").textContent = money(debtRemaining());
+  $("creditMonthlyTotal").textContent = money(monthlyCredits());
   $("savingsTotal").textContent = money(state.savings);
   $("projectionMini").innerHTML = projection(6).map(r => `<div class="projection-row"><span>${esc(r.label)}</span><strong>${money(r.balance)}</strong><span>${money(r.credits)}/mois</span></div>`).join("");
   const f = forecast();
@@ -354,27 +327,30 @@ function renderHome() {
 function dayEvents(date) {
   const k = iso(date), day = date.getDate(), events = [];
   state.incomes.forEach(i => {
-    if (i.type === "oneoff" && i.date === k) events.push({ type: "income", text: "💰 +" + money(i.amount), detail: i.label || "Revenu", name: i.label });
-    if (i.type === "recurrent" && iso(recurringDateForMonth(i.day, date.getFullYear(), date.getMonth())) === k) events.push({ type: "income", text: "💰 +" + money(i.amount), detail: i.label || "Revenu récurrent", name: i.label });
+    if (i.type === "oneoff" && i.date === k) events.push({ type: "income", text: "💰 +" + money(i.amount), detail: `${i.label || "Revenu"}${i.note ? " · 📝 " + i.note : ""}`, name: i.label });
+    if (i.type === "recurrent" && num(i.day) === day) events.push({ type: "income", text: "💰 +" + money(i.amount), detail: i.label || "Revenu récurrent", name: i.label });
   });
   state.expenses.forEach(e => {
-    if (e.date === k) events.push({ type: e.payment === "deferred" ? "deferred" : "expense", text: (e.payment === "deferred" ? "💳 " : "🛒 ") + money(e.amount), detail: `${e.category || "Dépense"}${e.payment === "deferred" ? " · débit différé" : ""}`, name: e.category });
+    if (e.date === k) events.push({ type: e.payment === "deferred" ? "deferred" : "expense", text: (e.payment === "deferred" ? "💳 " : "🛒 ") + money(e.amount), detail: `${e.category || "Dépense"}${e.payment === "deferred" ? " · débit différé" : ""}${e.note ? " · 📝 " + e.note : ""}`, name: e.category });
   });
   state.bills.forEach(b => {
-    if (b.active !== false && iso(recurringDateForMonth(b.day, date.getFullYear(), date.getMonth())) === k) events.push({ type: "credit", text: "🔄 " + b.name + " -" + money(b.amount), detail: "Prélèvement récurrent", name: b.name });
+    if (num(b.day) === day && b.active !== false) events.push({ type: "credit", text: "🔄 " + b.name + " -" + money(b.amount), detail: `Prélèvement récurrent${b.note ? " · 📝 " + b.note : ""}`, name: b.name });
+  });
+  activeSubscriptions().forEach(sub => {
+    const due = subscriptionDueDateForMonth(sub, date.getFullYear(), date.getMonth());
+    if (due && iso(due) === k) events.push({ type: "credit", subscriptionId: sub.id, text: `🔄 ${sub.name} -${money(sub.amount)}`, detail: `${subscriptionFrequencyLabel(sub.frequency)} · abonnement${sub.note ? " · 📝 " + sub.note : ""}`, name: sub.name });
   });
   state.credits.forEach(c => {
     const total = creditTotalMonths(c);
     for (let i = 1; i <= total; i++) {
       const due = creditInstallmentDate(c, i);
       if (iso(due) !== k) continue;
-      ensureCreditLedger(c);
-      const isPaid = c.appliedInstallments.includes(i);
+      const isPaid = due <= new Date();
       const remainingAfter = Math.max(0, total - i);
       events.push({
         type: "credit", creditId: c.id, installment: i, total, paid: isPaid,
         text: `🏦 ${c.name} -${money(c.monthly)} · ${i}/${total}`,
-        detail: `${i}/${total} · restant après paiement ${money(remainingAfter * num(c.monthly))}`,
+        detail: `${i}/${total} · restant après paiement ${money(remainingAfter * num(c.monthly))}${c.note ? " · 📝 " + c.note : ""}`,
         name: c.name
       });
     }
@@ -383,15 +359,14 @@ function dayEvents(date) {
 }
 function renderCalendar() {
   const y = viewMonth.getFullYear(), m = viewMonth.getMonth();
-  const last = new Date(y, m + 1, 0);
+  const first = new Date(y, m, 1), last = new Date(y, m + 1, 0);
+  const offset = (first.getDay() + 6) % 7;
   $("calendarTitle").textContent = monthLabel(viewMonth);
   let html = "";
+  for (let i = 0; i < offset; i++) html += `<div class="calendar-blank"></div>`;
   for (let d = 1; d <= last.getDate(); d++) {
     const date = new Date(y, m, d), today = iso(date) === todayKey(), ev = dayEvents(date);
-    const events = ev.length
-      ? ev.map(e => `<span class="event event-${e.type}">${e.text}</span>`).join("")
-      : `<span class="event-empty">Aucune opération</span>`;
-    html += `<button class="calendar-day calendar-list-day ${today ? "today" : ""} ${ev.length ? "has-events" : ""}" data-date="${iso(date)}"><span class="calendar-day-date"><small>${esc(date.toLocaleDateString("fr-FR", { weekday: "short" }).replace(".", ""))}</small><strong>${d}</strong></span><span class="calendar-day-events">${events}</span></button>`;
+    html += `<button class="calendar-day ${today ? "today" : ""}" data-date="${iso(date)}"><span class="calendar-day-number">${d}</span>${ev.slice(0, 5).map(e => `<span class="event event-${e.type}">${e.text}</span>`).join("")}</button>`;
   }
   $("calendarGrid").innerHTML = html;
   document.querySelectorAll("[data-date]").forEach(b => b.onclick = () => openDay(b.dataset.date, false));
@@ -408,60 +383,127 @@ function openDay(dateKey, fromCredits = false) {
    NOUVELLE OPÉRATION
    ============================= */
 function openOperation(defaultDate) {
-  openModal("➕ Nouvelle opération", `<div class="choice-grid"><button class="choice-btn" data-op="expense">💳 Dépense</button><button class="choice-btn" data-op="income">💰 Revenu</button><button class="choice-btn" data-op="credit">🏦 Paiement fractionné</button><button class="choice-btn" data-op="bill">🔄 Prélèvement récurrent</button></div><div id="opForm" class="panel muted">Choisis un type.</div>`);
+  openModal("➕ Nouvelle opération", `<div class="choice-grid"><button class="choice-btn" data-op="expense">💳 Dépense</button><button class="choice-btn" data-op="income">💰 Revenu</button><button class="choice-btn" data-op="credit">🏦 Paiement fractionné</button><button class="choice-btn" data-op="bill">🔄 Prélèvement récurrent</button><button class="choice-btn" data-op="subscription">🎵 Abonnement</button></div><div id="opForm" class="panel muted">Choisis un type.</div>`);
   document.querySelectorAll("[data-op]").forEach(b => b.onclick = () => renderOperationForm(b.dataset.op, defaultDate));
 }
 function renderOperationForm(type, date) {
   const box = $("opForm");
   if (type === "expense") {
-    box.innerHTML = `<div class="form-group"><label>Montant (€)</label><input id="oa" type="number" step="0.01"></div><div class="form-group"><label>Nature</label><select id="on"><option>Alimentation</option><option>Carburant</option><option>Loisirs</option><option>Parfums</option><option>Sport</option><option>Maison</option><option>Transport</option><option>Divers</option></select></div><div class="form-group"><label>Mode de paiement</label><select id="op"><option value="deferred">💳 Carte — débit différé</option><option value="instant">💳 Carte — débit immédiat</option><option value="cash">💵 Espèces</option><option value="transfer">🏦 Virement</option></select></div><button class="primary" id="saveOp">Enregistrer</button>`;
+    box.innerHTML = `<div class="form-group"><label>Montant (€)</label><input id="oa" type="number" step="0.01"></div><div class="form-group"><label>Nature</label><select id="on"><option>Alimentation</option><option>Carburant</option><option>Loisirs</option><option>Parfums</option><option>Sport</option><option>Maison</option><option>Transport</option><option>Divers</option></select></div><div class="form-group"><label>Mode de paiement</label><select id="op"><option value="deferred">💳 Carte — débit différé</option><option value="instant">💳 Carte — débit immédiat</option><option value="cash">💵 Espèces</option><option value="transfer">🏦 Virement</option></select></div><div class="form-group"><label>Note / commentaire (facultatif)</label><textarea id="onote" rows="2" placeholder="Ex. paiement anticipé important..."></textarea></div><button class="primary" id="saveOp">Enregistrer</button>`;
     $("saveOp").onclick = () => {
       const amount = num($("oa").value), payment = $("op").value;
       if (amount <= 0) return alert("Montant invalide.");
-      const expense = { id: uid("exp"), date, amount, category: $("on").value, payment, balanceApplied: false };
-      if (payment === "deferred") expense.deferredDebitDate = iso(new Date(localDate(date).getFullYear(), localDate(date).getMonth() + 1, 0, 12));
-      state.expenses.push(expense);
-      if (!isFutureDate(date) && payment !== "deferred") { state.balance -= amount; expense.balanceApplied = true; }
+      state.expenses.push({ id: uid("exp"), date, amount, category: $("on").value, payment, note: $("onote").value.trim() });
+      if (!isFutureDate(date) && payment !== "deferred") state.balance -= amount;
       save(); closeModal(); renderAll();
     };
   }
   if (type === "income") {
-    box.innerHTML = `<div class="form-group"><label>Origine</label><input id="ol" placeholder="Europcar, Domino's, vente..."></div><div class="form-group"><label>Montant (€)</label><input id="oa" type="number" step="0.01"></div><div class="form-group"><label>Fréquence</label><select id="of"><option value="oneoff">Ponctuel</option><option value="recurrent">Chaque mois</option></select></div><p class="muted">Un revenu futur reste dans « Revenus à recevoir » et ne modifie pas le solde réel avant sa date.</p><button class="primary" id="saveOp">Enregistrer</button>`;
+    box.innerHTML = `<div class="form-group"><label>Origine</label><input id="ol" placeholder="Europcar, Domino's, vente..."></div><div class="form-group"><label>Montant (€)</label><input id="oa" type="number" step="0.01"></div><div class="form-group"><label>Note / commentaire (facultatif)</label><textarea id="onote" rows="2"></textarea></div><p class="muted">Une date future reste dans « Revenus à recevoir » et ne modifie pas le solde réel avant son arrivée.</p><button class="primary" id="saveOp">Enregistrer</button>`;
     $("saveOp").onclick = () => {
       const amount = num($("oa").value);
       if (amount <= 0) return alert("Montant invalide.");
-      const type = $("of").value, future = isFutureDate(date);
-      const income = { id: uid("inc"), label: $("ol").value.trim() || "Revenu", amount, date, type, received: type === "oneoff" && !future };
-      if (type === "recurrent") { income.day = localDate(date).getDate(); income.lastAppliedMonth = ""; }
-      state.incomes.push(income);
-      if (type === "oneoff" && !future) state.balance += amount;
-      if (type === "recurrent" && !future) { state.balance += amount; income.lastAppliedMonth = monthKey(new Date()); }
+      const future = isFutureDate(date);
+      state.incomes.push({ id: uid("inc"), label: $("ol").value.trim() || "Revenu", amount, date, type: "oneoff", received: !future, note: $("onote").value.trim() });
+      if (!future) state.balance += amount;
       save(); closeModal(); renderAll();
     };
   }
   if (type === "credit") {
-    box.innerHTML = `<div class="form-group"><label>Organisme / nom</label><input id="cl" placeholder="PayPal, Cofidis..."></div><div class="form-group"><label>Mensualité (€)</label><input id="cm" type="number" step="0.01"></div><div class="form-group"><label>Nombre total de mensualités</label><input id="cr" type="number" min="1" value="4"></div><p class="muted">La 1re mensualité est payée le jour de l'achat. Les suivantes sont programmées chaque mois, jusqu'à la dernière.</p><button class="primary" id="saveOp">Créer le crédit</button>`;
+    box.innerHTML = `<div class="form-group"><label>Organisme / nom</label><input id="cl" placeholder="PayPal, Cofidis..."></div><div class="form-group"><label>Mensualité (€)</label><input id="cm" type="number" step="0.01"></div><div class="form-group"><label>Nombre total de mensualités</label><input id="cr" type="number" min="1" value="4"></div><div class="form-group"><label>Date du premier paiement</label><input id="cd" type="date" value="${esc(date)}"></div><div class="form-group"><label>Note / commentaire (facultatif)</label><textarea id="cnote" rows="2"></textarea></div><p class="muted">La 1re mensualité est payée le jour de l'achat. Les suivantes sont programmées chaque mois, jusqu'à la dernière.</p><button class="primary" id="saveOp">Créer le crédit</button>`;
     $("saveOp").onclick = () => {
-      const monthly = num($("cm").value), months = Math.max(1, Math.round(num($("cr").value))), d = localDate(date), pastOrToday = !isFutureDate(date);
+      const monthly = num($("cm").value), months = Math.max(1, Math.round(num($("cr").value))), start = $("cd").value || date, d = localDate(start), pastOrToday = !isFutureDate(start);
       if (monthly <= 0) return alert("Mensualité invalide.");
-      const credit = { id: uid("credit"), name: $("cl").value.trim() || "Nouveau crédit", monthly, totalMonths: months, startDate: date, day: d.getDate(), firstPaymentApplied: pastOrToday, balanceAdjustedForFirstPayment: pastOrToday, appliedInstallments: pastOrToday ? [1] : [] };
+      const credit = { id: uid("credit"), name: $("cl").value.trim() || "Nouveau crédit", monthly, totalMonths: months, startDate: start, day: d.getDate(), firstPaymentApplied: pastOrToday, balanceAdjustedForFirstPayment: pastOrToday, note: $("cnote").value.trim() };
       state.credits.push(credit);
       if (pastOrToday) state.balance -= monthly;
       save(); closeModal(); renderAll();
     };
   }
+  if (type === "subscription") {
+    box.innerHTML = `<div class="form-group"><label>Nom de l'abonnement</label><input id="sl" placeholder="Spotify, Netflix..."></div><div class="form-group"><label>Montant (€)</label><input id="sa" type="number" step="0.01"></div><div class="form-group"><label>Fréquence</label><select id="sf"><option value="monthly">Mensuel</option><option value="yearly">Annuel</option></select></div><div class="form-group"><label>Prochain prélèvement</label><input id="sd" type="date" value="${esc(date)}"></div><div class="form-group"><label>Catégorie</label><select id="scat"><option>Streaming</option><option>Téléphonie</option><option>Sport</option><option>Logiciel</option><option>Assurance</option><option>Maison</option><option>Autre</option></select></div><div class="form-group"><label>Note / commentaire (facultatif)</label><textarea id="snote" rows="2"></textarea></div><button class="primary" id="saveOp">Ajouter l'abonnement</button>`;
+    $("saveOp").onclick = () => {
+      const amount = num($("sa").value), start = $("sd").value || date;
+      if (amount <= 0 || !start) return alert("Vérifie les valeurs.");
+      const sub = { id: uid("sub"), name: $("sl").value.trim() || "Abonnement", amount, frequency: $("sf").value, startDate: start, category: $("scat").value, active: true, lastAppliedDue: "", note: $("snote").value.trim() };
+      state.subscriptions.push(sub);
+      const due = subscriptionDueOnOrBeforeToday(sub);
+      if (due === todayKey()) { state.balance -= amount; sub.lastAppliedDue = due; }
+      save(); closeModal(); renderAll();
+    };
+  }
   if (type === "bill") {
-    box.innerHTML = `<div class="form-group"><label>Nom</label><input id="bl" placeholder="Loyer, Spotify..."></div><div class="form-group"><label>Montant (€)</label><input id="ba" type="number" step="0.01"></div><div class="form-group"><label>Jour du mois</label><input id="bd" type="number" min="1" max="31" value="${localDate(date).getDate()}"></div><button class="primary" id="saveOp">Créer le prélèvement</button>`;
+    box.innerHTML = `<div class="form-group"><label>Nom</label><input id="bl" placeholder="Loyer, Spotify..."></div><div class="form-group"><label>Montant (€)</label><input id="ba" type="number" step="0.01"></div><div class="form-group"><label>Jour du mois</label><input id="bd" type="number" min="1" max="31" value="${localDate(date).getDate()}"></div><div class="form-group"><label>Note / commentaire (facultatif)</label><textarea id="bnote" rows="2"></textarea></div><button class="primary" id="saveOp">Créer le prélèvement</button>`;
     $("saveOp").onclick = () => {
       const amount = num($("ba").value);
       if (amount <= 0) return alert("Montant invalide.");
       const day = Math.min(31, Math.max(1, Math.round(num($("bd").value))));
-      const bill = { id: uid("bill"), name: $("bl").value.trim() || "Prélèvement", amount, day, active: true, lastAppliedMonth: "" };
+      const bill = { id: uid("bill"), name: $("bl").value.trim() || "Prélèvement", amount, day, active: true, lastAppliedMonth: "", note: $("bnote").value.trim() };
       state.bills.push(bill);
-      if (iso(recurringDateForMonth(day, new Date().getFullYear(), new Date().getMonth())) <= todayKey()) { state.balance -= amount; bill.lastAppliedMonth = monthKey(new Date()); }
+      if (day <= new Date().getDate()) { state.balance -= amount; bill.lastAppliedMonth = monthKey(new Date()); }
       save(); closeModal(); renderAll();
     };
   }
+}
+
+/* =============================
+   ABONNEMENTS UI
+   ============================= */
+function renderSubscriptions() {
+  const active = activeSubscriptions();
+  $("subscriptionMonthlySummary").textContent = money(subscriptionsMonthlyTotal());
+  $("subscriptionAnnualSummary").textContent = money(subscriptionsAnnualTotal());
+  $("activeSubscriptionCount").textContent = active.length;
+  $("subscriptionEquivalent").textContent = money(subscriptionsMonthlyTotal());
+  $("subscriptionList").innerHTML = active.length ? active.map(sub => {
+    const d = subscriptionDueOnOrBeforeToday(sub);
+    const next = nextSubscriptionDate(sub);
+    return `<div class="credit-row"><div><h3>${esc(sub.name)}</h3><div class="muted">${money(sub.amount)} · ${subscriptionFrequencyLabel(sub.frequency)}</div><div class="muted">Prochain prélèvement : <strong>${esc(next.toLocaleDateString("fr-FR"))}</strong> · ${money(subscriptionAnnualCost(sub))}/an</div>${sub.note ? `<div class="note-line">📝 ${esc(sub.note)}</div>` : ""}</div><div class="credit-right"><button class="small-btn" data-sub-edit="${sub.id}">✏️ Modifier</button><button class="danger" data-sub-del="${sub.id}">Supprimer</button></div></div>`;
+  }).join("") : `<div class="panel">Aucun abonnement actif.</div>`;
+  document.querySelectorAll("[data-sub-del]").forEach(b => b.onclick = () => {
+    if (!confirm("Supprimer cet abonnement et ses futurs prélèvements ?")) return;
+    state.subscriptions = state.subscriptions.filter(s => s.id !== b.dataset.subDel); save(); renderAll();
+  });
+  document.querySelectorAll("[data-sub-edit]").forEach(b => b.onclick = () => editSubscription(b.dataset.subEdit));
+}
+function nextSubscriptionDate(sub) {
+  const today = new Date(); today.setHours(12,0,0,0);
+  const start = localDate(sub.startDate || todayKey());
+  if (sub.frequency === "yearly") {
+    let d = new Date(today.getFullYear(), start.getMonth(), Math.min(start.getDate(), new Date(today.getFullYear(), start.getMonth()+1,0).getDate()), 12);
+    if (d < today) d = new Date(today.getFullYear()+1, start.getMonth(), Math.min(start.getDate(), new Date(today.getFullYear()+1, start.getMonth()+1,0).getDate()), 12);
+    if (d < start) d = start;
+    return d;
+  }
+  let d = new Date(today.getFullYear(), today.getMonth(), Math.min(start.getDate(), new Date(today.getFullYear(), today.getMonth()+1,0).getDate()), 12);
+  if (d < today) d = new Date(today.getFullYear(), today.getMonth()+1, Math.min(start.getDate(), new Date(today.getFullYear(), today.getMonth()+2,0).getDate()), 12);
+  if (d < start) d = start;
+  return d;
+}
+function editSubscription(id) {
+  const sub = state.subscriptions.find(s => s.id === id); if (!sub) return;
+  openModal("✏️ Modifier l'abonnement", `<div class="form-group"><label>Nom</label><input id="sel" value="${esc(sub.name)}"></div><div class="form-group"><label>Montant (€)</label><input id="sea" type="number" step="0.01" value="${num(sub.amount)}"></div><div class="form-group"><label>Fréquence</label><select id="sef"><option value="monthly" ${sub.frequency === "monthly" ? "selected" : ""}>Mensuel</option><option value="yearly" ${sub.frequency === "yearly" ? "selected" : ""}>Annuel</option></select></div><div class="form-group"><label>Prochain prélèvement</label><input id="sed" type="date" value="${esc(sub.startDate)}"></div><div class="form-group"><label>Catégorie</label><input id="sec" value="${esc(sub.category || "Autre")}"></div><div class="form-group"><label>Note / commentaire</label><textarea id="sen" rows="3">${esc(sub.note || "")}</textarea></div><div class="form-actions"><button class="primary" id="saveSubEdit">Enregistrer</button><button class="small-btn" id="cancelSubEdit">Annuler</button></div>`);
+  $("cancelSubEdit").onclick = closeModal;
+  $("saveSubEdit").onclick = () => {
+    const amount = num($("sea").value), start = $("sed").value;
+    if (amount <= 0 || !start) return alert("Vérifie les valeurs.");
+    const oldAmount = num(sub.amount), oldAppliedDue = sub.lastAppliedDue;
+    sub.name = $("sel").value.trim() || "Abonnement"; sub.amount = amount; sub.frequency = $("sef").value; sub.startDate = start; sub.category = $("sec").value.trim() || "Autre"; sub.note = $("sen").value.trim();
+    const newDue = subscriptionDueOnOrBeforeToday(sub);
+    if (oldAppliedDue) {
+      if (newDue && newDue <= todayKey()) {
+        state.balance += oldAmount - amount;
+        sub.lastAppliedDue = newDue;
+      } else {
+        state.balance += oldAmount;
+        sub.lastAppliedDue = "";
+      }
+    } else if (newDue === todayKey()) {
+      state.balance -= amount;
+      sub.lastAppliedDue = newDue;
+    }
+    save(); closeModal(); renderAll();
+  };
 }
 
 /* =============================
@@ -475,15 +517,12 @@ function renderCredits() {
   $("completedCreditCount").textContent = completed.length;
   $("creditList").innerHTML = active.length ? active.map(c => {
     const st = creditStatus(c), end = creditEndDate(c);
-    return `<div class="credit-row"><div><h3>${esc(c.name)}</h3><div class="muted">${st.remaining} mensualité${st.remaining > 1 ? "s" : ""} restante${st.remaining > 1 ? "s" : ""} · ${st.paid}/${st.total} déjà payée${st.paid > 1 ? "s" : ""}</div><div class="muted">Dette restante : <strong>${money(num(c.monthly) * st.remaining)}</strong> · fin ${esc(end.toLocaleDateString("fr-FR"))}</div></div><div class="credit-right"><strong>${money(c.monthly)}</strong><span class="muted">/mois</span><br><button class="small-btn" data-edit="${c.id}">✏️ Modifier</button><button class="danger" data-del="${c.id}">Supprimer</button></div></div>`;
+    return `<div class="credit-row"><div><h3>${esc(c.name)}</h3><div class="muted">${st.remaining} mensualité${st.remaining > 1 ? "s" : ""} restante${st.remaining > 1 ? "s" : ""} · ${st.paid}/${st.total} déjà payée${st.paid > 1 ? "s" : ""}</div><div class="muted">Dette restante : <strong>${money(num(c.monthly) * st.remaining)}</strong> · fin ${esc(end.toLocaleDateString("fr-FR"))}</div>${c.note ? `<div class="note-line">📝 ${esc(c.note)}</div>` : ""}</div><div class="credit-right"><strong>${money(c.monthly)}</strong><span class="muted">/mois</span><br><button class="small-btn" data-edit="${c.id}">✏️ Modifier</button><button class="danger" data-del="${c.id}">Supprimer</button></div></div>`;
   }).join("") : `<div class="panel">Aucun crédit actif.</div>`;
   document.querySelectorAll("[data-del]").forEach(b => b.onclick = () => {
     const c = state.credits.find(x => x.id === b.dataset.del); if (!c) return;
     if (confirm("Supprimer ce crédit ?")) {
-      ensureCreditLedger(c);
-      // On annule uniquement les débits que Finance Quest avait lui-même
-      // inscrits dans son solde : aucun débit fantôme ne reste après suppression.
-      state.balance += num(c.monthly) * c.appliedInstallments.length;
+      if (c.balanceAdjustedForFirstPayment) state.balance += num(c.monthly);
       state.credits = state.credits.filter(x => x.id !== b.dataset.del);
       save(); renderAll();
     }
@@ -493,43 +532,22 @@ function renderCredits() {
 }
 function editCredit(id) {
   const c = state.credits.find(x => x.id === id); if (!c) return;
-  ensureCreditLedger(c);
-  const oldMonthly = num(c.monthly), oldAppliedInstallments = [...c.appliedInstallments];
+  const oldMonthly = num(c.monthly), oldApplied = !!c.balanceAdjustedForFirstPayment;
   const st = creditStatus(c);
-  openModal("✏️ Modifier le crédit", `<div class="panel"><p><strong>${esc(c.name)}</strong></p><p class="muted">Actuellement : ${st.paid}/${st.total} payée${st.paid > 1 ? "s" : "s"}, ${st.remaining} restante${st.remaining > 1 ? "s" : ""}.</p></div><div class="form-group"><label>Organisme / nom</label><input id="el" value="${esc(c.name)}"></div><div class="form-group"><label>Mensualité (€)</label><input id="em" type="number" step="0.01" value="${num(c.monthly)}"></div><div class="form-group"><label>Nombre total de mensualités</label><input id="er" type="number" min="1" value="${creditTotalMonths(c)}"></div><div class="form-group"><label>Date du premier paiement</label><input id="ed" type="date" value="${esc(c.startDate)}"></div><p class="muted">Le calendrier et la dette restante seront recalculés.</p><div class="form-actions"><button class="primary" id="saveEdit">Enregistrer</button><button class="small-btn" id="cancelEdit">Annuler</button></div>`);
+  openModal("✏️ Modifier le crédit", `<div class="panel"><p><strong>${esc(c.name)}</strong></p><p class="muted">Actuellement : ${st.paid}/${st.total} payée${st.paid > 1 ? "s" : "s"}, ${st.remaining} restante${st.remaining > 1 ? "s" : ""}.</p></div><div class="form-group"><label>Organisme / nom</label><input id="el" value="${esc(c.name)}"></div><div class="form-group"><label>Mensualité (€)</label><input id="em" type="number" step="0.01" value="${num(c.monthly)}"></div><div class="form-group"><label>Nombre total de mensualités</label><input id="er" type="number" min="1" value="${creditTotalMonths(c)}"></div><div class="form-group"><label>Date du premier paiement</label><input id="ed" type="date" value="${esc(c.startDate)}"></div><div class="form-group"><label>Note / commentaire</label><textarea id="enote" rows="3">${esc(c.note || "")}</textarea></div><p class="muted">Le calendrier et la dette restante seront recalculés.</p><div class="form-actions"><button class="primary" id="saveEdit">Enregistrer</button><button class="small-btn" id="cancelEdit">Annuler</button></div>`);
   $("cancelEdit").onclick = closeModal;
   $("saveEdit").onclick = () => {
     const monthly = num($("em").value), total = Math.max(1, Math.round(num($("er").value))), start = $("ed").value;
     if (monthly <= 0 || !start) return alert("Vérifie les valeurs.");
-    // On retire les échéances déjà inscrites, puis on réapplique exactement
-    // celles qui sont réellement dues avec le nouveau calendrier.
-    state.balance += oldMonthly * oldAppliedInstallments.length;
+    const newApplied = !isFutureDate(start) && (oldApplied || start === todayKey());
+    if (oldApplied) state.balance += oldMonthly;
     c.name = $("el").value.trim() || "Crédit";
-    c.monthly = monthly; c.totalMonths = total; c.startDate = start; c.day = localDate(start).getDate();
-    c.appliedInstallments = [];
-    for (let i = 1; i <= total; i++) {
-      if (iso(creditInstallmentDate(c, i)) <= todayKey()) c.appliedInstallments.push(i);
-    }
-    c.firstPaymentApplied = c.appliedInstallments.includes(1);
-    c.balanceAdjustedForFirstPayment = c.firstPaymentApplied;
-    state.balance -= monthly * c.appliedInstallments.length;
+    c.monthly = monthly; c.totalMonths = total; c.startDate = start; c.day = localDate(start).getDate(); c.note = $("enote").value.trim();
+    c.firstPaymentApplied = newApplied;
+    c.balanceAdjustedForFirstPayment = newApplied;
+    if (newApplied) state.balance -= monthly;
     save(); closeModal(); renderAll();
   };
-}
-function resetCredits() {
-  if (!state.credits.length) return alert("Aucun crédit à effacer.");
-  const firstWarning = confirm("Effacer tous les crédits enregistrés ? Les échéances disparaîtront aussi du calendrier.");
-  if (!firstWarning) return;
-  const finalWarning = confirm("Dernière confirmation : cette action supprime tous les crédits. Continuer ?");
-  if (!finalWarning) return;
-  const appliedTotal = state.credits.reduce((sum, credit) => {
-    ensureCreditLedger(credit);
-    return sum + num(credit.monthly) * credit.appliedInstallments.length;
-  }, 0);
-  state.balance += appliedTotal;
-  state.credits = [];
-  save();
-  renderAll();
 }
 
 /* =============================
@@ -547,8 +565,8 @@ function projection(months) {
         return x.type === "oneoff" && x.date && localDate(x.date) >= start && localDate(x.date) <= end ? s + num(x.amount) : s;
       }, 0);
       const bills = state.bills.filter(b => b.active !== false).reduce((s, b) => {
-        const due = recurringDateForMonth(b.day, start.getFullYear(), start.getMonth());
-        return s + (due >= start && due <= end ? num(b.amount) : 0);
+        const day = Math.min(31, Math.max(1, Math.round(num(b.day))));
+        return s + (new Date(start.getFullYear(), start.getMonth(), day, 12) >= start && new Date(start.getFullYear(), start.getMonth(), day, 12) <= end ? num(b.amount) : 0);
       }, 0);
       const credits = state.credits.reduce((s, c) => {
         for (let n = 1; n <= creditTotalMonths(c); n++) {
@@ -559,7 +577,8 @@ function projection(months) {
       }, 0);
       const deferred = state.expenses.filter(e => e.payment === "deferred" && localDate(e.date) >= start && localDate(e.date) <= end).reduce((s, e) => s + num(e.amount), 0);
       const immediate = state.expenses.filter(e => e.payment !== "deferred" && localDate(e.date) >= start && localDate(e.date) <= end).reduce((s, e) => s + num(e.amount), 0);
-      simulated += income - bills - credits - deferred - immediate;
+      const subscriptions = activeSubscriptions().reduce((s, sub) => { const d = subscriptionDueDateForMonth(sub, start.getFullYear(), start.getMonth()); return s + (d && d >= start && d <= end ? num(sub.amount) : 0); }, 0);
+      simulated += income - bills - credits - deferred - immediate - subscriptions;
     }
     const monthEnd = new Date(start.getFullYear(), start.getMonth() + 1, 0, 12);
     const cm = state.credits.reduce((s, c) => {
@@ -596,8 +615,9 @@ function drawChart() {
    PARAMÈTRES / SIMULATION
    ============================= */
 function settingsModal() {
-  openModal("⚙️ Paramètres", `<div class="form-group"><label>Solde de départ (€)</label><input id="sb" type="number" step="0.01" value="${num(state.settings.startingBalance)}"></div><div class="form-group"><label>Découvert autorisé (€)</label><input id="so" type="number" step="0.01" value="${state.settings.overdraft}"></div><p class="muted">Indique le solde avant les opérations du calendrier. Finance Quest y ajoute ou retire ensuite les revenus, dépenses, prélèvements et échéances déjà dus.</p><div class="form-actions"><button class="primary" id="saveSet">Enregistrer</button></div>`);
-  $("saveSet").onclick = () => { state.settings.startingBalance = num($("sb").value); state.settings.overdraft = num($("so").value); rebuildBalanceFromCalendar(); save(); closeModal(); renderAll(); };
+  openModal("⚙️ Paramètres", `<div class="form-group"><label>Solde bancaire réel (€)</label><input id="sb" type="number" step="0.01" value="${state.balance}"></div><div class="form-group"><label>Découvert autorisé (€)</label><input id="so" type="number" step="0.01" value="${state.settings.overdraft}"></div><p class="muted">Les salaires et revenus se saisissent désormais dans le calendrier afin de respecter leurs vraies dates. Cette page sert principalement à corriger le solde bancaire réel.</p><div class="form-actions"><button class="primary" id="saveSet">Enregistrer</button><button class="danger" id="resetAll">Tout remettre à zéro</button></div>`);
+  $("saveSet").onclick = () => { state.balance = num($("sb").value); state.settings.overdraft = num($("so").value); save(); closeModal(); renderAll(); };
+  $("resetAll").onclick = () => { if (confirm("Effacer toutes les données ?")) { state = clone(DEFAULT); save(); closeModal(); renderAll(); } };
 }
 function simulation() {
   openModal("🔮 Simulation", `<div class="form-group"><label>Revenu ponctuel (€)</label><input id="si" type="number" step="0.01" value="0"></div><div class="form-group"><label>Dépense immédiate (€)</label><input id="sx" type="number" step="0.01" value="0"></div><div class="form-group"><label>Nouveau crédit — mensualité (€)</label><input id="sc" type="number" step="0.01" value="0"></div><div class="form-group"><label>Durée (mois)</label><input id="sm" type="number" min="1" value="4"></div><div id="sr" class="sim-card">Entre les valeurs puis calcule.</div><button class="primary" id="goSim">Calculer</button>`);
@@ -607,6 +627,6 @@ function simulation() {
   };
 }
 
-function renderAll() { renderHome(); renderCalendar(); renderCredits(); renderEvolution(); }
+function renderAll() { renderHome(); renderCalendar(); renderCredits(); renderSubscriptions(); renderEvolution(); }
 function init() { settleDueOperations(); setup(); renderAll(); }
 document.addEventListener("DOMContentLoaded", init);
