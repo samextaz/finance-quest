@@ -1,8 +1,8 @@
-Finance Quest V4.4.11
+Finance Quest V4.4.12
 
-- Expenses can now be edited or deleted directly from the calendar day view.
-- Editing an expense correctly adjusts the current balance when the payment is already applied.
-- The global 'Tout remettre à zéro' button was removed from Settings.
-- Credits now have a dedicated 'Supprimer tous les crédits' action.
-- Subscriptions now have a dedicated 'Supprimer tous les abonnements' action.
-- Existing 5-tab navigation and other features preserved.
+FIX — Débit différé dans la prévision :
+Une dépense en débit différé ne modifie jamais le solde actuel.
+En revanche, une dépense différée enregistrée dans le mois en cours est désormais
+déduite de la prévision de fin de mois, même si sa date d'achat est déjà passée.
+Le montant reste visible dans la carte Débit différé.
+Les dépenses en débit immédiat continuent de modifier le solde actuel et la prévision.

@@ -280,12 +280,23 @@ function futureImmediateExpensesThrough(endDate) {
   return state.expenses.filter(e => e.payment !== "deferred" && e.date > todayKey() && localDate(e.date) <= endDate).reduce((s, e) => s + num(e.amount), 0);
 }
 function forecast() {
-  const end = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0, 12);
+  const now = new Date();
+  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 12);
+
+  // A deferred-card purchase does NOT affect the real/current balance,
+  // but it DOES reduce the projected end-of-month balance. Its calendar
+  // date is the purchase date, not the actual bank debit date, so even
+  // a purchase entered earlier in the current month must remain in the
+  // current-month forecast.
+  const deferredThisMonth = state.expenses
+    .filter(e => e.payment === "deferred" && sameMonth(e.date, now))
+    .reduce((s, e) => s + num(e.amount), 0);
+
   return num(state.balance)
     + oneOffIncomeThroughMonth(end)
     - recurringBillsThroughMonth(end)
     - futureCreditThrough(end)
-    - futureDeferredThrough(end)
+    - deferredThisMonth
     - futureImmediateExpensesThrough(end)
     - subscriptionsThrough(end);
 }
