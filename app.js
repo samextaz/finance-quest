@@ -1,4 +1,5 @@
 const KEY = "financeQuest_v4_3";
+const THEME_KEY = "financeQuest_theme";
 const DEFAULT = {
   balance: 0,
   savings: 0,
@@ -275,8 +276,10 @@ function monthCreditTotal() { return state.credits.reduce((s, c) => s + (creditS
    NAVIGATION
    ============================= */
 function setup() {
+  setupTheme();
   document.querySelectorAll(".nav-btn").forEach(b => b.onclick = () => show(b.dataset.screen));
   $("settingsBtn").onclick = settingsModal;
+  $("themeToggle").onclick = toggleTheme;
   $("simulateBtn").onclick = simulation;
   $("prevMonth").onclick = () => { viewMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() - 1, 1); renderCalendar(); };
   $("nextMonth").onclick = () => { viewMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 1); renderCalendar(); };
@@ -301,6 +304,27 @@ function openModal(title, body) {
   $("modal").classList.remove("hidden");
 }
 function closeModal() { $("modal").classList.add("hidden"); $("modalBody").innerHTML = ""; }
+function setupTheme() {
+  let theme = "dark";
+  try { theme = localStorage.getItem(THEME_KEY) || "dark"; } catch (_) {}
+  applyTheme(theme);
+}
+function applyTheme(theme) {
+  const isLight = theme === "light";
+  document.documentElement.dataset.theme = isLight ? "light" : "dark";
+  const button = $("themeToggle");
+  if (button) {
+    button.textContent = isLight ? "☾" : "☀︎";
+    button.setAttribute("aria-label", isLight ? "Activer le mode sombre" : "Activer le mode clair");
+    button.title = isLight ? "Mode sombre" : "Mode clair";
+  }
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", isLight ? "#f2f2f7" : "#0b0b0f");
+}
+function toggleTheme() {
+  const next = document.documentElement.dataset.theme === "light" ? "dark" : "light";
+  try { localStorage.setItem(THEME_KEY, next); } catch (_) {}
+  applyTheme(next);
+}
 
 /* =============================
    ACCUEIL
@@ -359,14 +383,15 @@ function dayEvents(date) {
 }
 function renderCalendar() {
   const y = viewMonth.getFullYear(), m = viewMonth.getMonth();
-  const first = new Date(y, m, 1), last = new Date(y, m + 1, 0);
-  const offset = (first.getDay() + 6) % 7;
+  const last = new Date(y, m + 1, 0);
   $("calendarTitle").textContent = monthLabel(viewMonth);
   let html = "";
-  for (let i = 0; i < offset; i++) html += `<div class="calendar-blank"></div>`;
   for (let d = 1; d <= last.getDate(); d++) {
     const date = new Date(y, m, d), today = iso(date) === todayKey(), ev = dayEvents(date);
-    html += `<button class="calendar-day ${today ? "today" : ""}" data-date="${iso(date)}"><span class="calendar-day-number">${d}</span>${ev.slice(0, 5).map(e => `<span class="event event-${e.type}">${e.text}</span>`).join("")}</button>`;
+    const events = ev.length
+      ? ev.map(e => `<span class="event event-${e.type}">${e.text}</span>`).join("")
+      : `<span class="event-empty">Aucune opération</span>`;
+    html += `<button class="calendar-day calendar-list-day ${today ? "today" : ""} ${ev.length ? "has-events" : ""}" data-date="${iso(date)}"><span class="calendar-day-date"><small>${esc(date.toLocaleDateString("fr-FR", { weekday: "short" }).replace(".", ""))}</small><strong>${d}</strong></span><span class="calendar-day-events">${events}</span></button>`;
   }
   $("calendarGrid").innerHTML = html;
   document.querySelectorAll("[data-date]").forEach(b => b.onclick = () => openDay(b.dataset.date, false));
