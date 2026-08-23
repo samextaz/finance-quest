@@ -1,7 +1,6 @@
-Finance Quest V4.4.13
+Finance Quest V4.4.15
 
-FIX — Prévision de fin de mois et débit différé.
-Toutes les dépenses en débit différé du mois courant sont désormais déduites
-directement de la prévision de fin de mois, quelle que soit leur date dans le mois.
-Le solde actuel reste inchangé et la carte Débit différé conserve le total.
-Cache-buster JavaScript mis à jour en v4.4.13.
+- Removed the global 'Tout remettre à zéro' button from Settings completely.
+- Added Modifier/Supprimer actions for one-off income entries from the calendar.
+- Editing/deleting a received one-off income correctly updates the current balance.
+- Future income remains forecast-only and does not alter the current balance.

@@ -381,6 +381,50 @@ function closeModal() { $("modal").classList.add("hidden"); $("modalBody").inner
 /* =============================
    ACCUEIL
    ============================= */
+
+function totalMonthlyOutflowsForSummary(year, month) {
+  const monthStart = new Date(year, month, 1);
+  const monthEnd = new Date(year, month + 1, 0, 23, 59, 59);
+  let total = 0;
+
+  // Direct expenses recorded in the calendar.
+  state.expenses.forEach(e => {
+    if (!e.date) return;
+    const d = localDate(e.date);
+    if (!d || d < monthStart || d > monthEnd) return;
+    total += num(e.amount);
+  });
+
+  // Credit installments that are actually scheduled in this month.
+  state.credits.forEach(c => {
+    ensureCreditLedger(c);
+    (c.ledger || []).forEach(item => {
+      if (!item.date || item.paid === false) return;
+      const d = localDate(item.date);
+      if (d && d.getFullYear() === year && d.getMonth() === month) {
+        total += num(c.monthly);
+      }
+    });
+  });
+
+  // Recurring subscriptions/bills due in this month.
+  state.subscriptions.forEach(s => {
+    if (s.active === false || !s.amount) return;
+    const day = Math.max(1, Math.min(31, Number(s.day || 1)));
+    const d = new Date(year, month, Math.min(day, new Date(year, month + 1, 0).getDate()));
+    if (d >= monthStart && d <= monthEnd) total += num(s.amount);
+  });
+
+  state.bills.forEach(b => {
+    if (b.active === false || !b.amount) return;
+    const day = Math.max(1, Math.min(31, Number(b.day || 1)));
+    const d = new Date(year, month, Math.min(day, new Date(year, month + 1, 0).getDate()));
+    if (d >= monthStart && d <= monthEnd) total += num(b.amount);
+  });
+
+  return total;
+}
+
 function renderHome() {
   $("currentBalance").textContent = money(state.balance);
   $("monthForecast").textContent = money(forecast());
@@ -407,7 +451,7 @@ function renderHome() {
 function dayEvents(date) {
   const k = iso(date), day = date.getDate(), events = [];
   state.incomes.forEach(i => {
-    if (i.type === "oneoff" && i.date === k) events.push({ type: "income", text: "💰 +" + money(i.amount), detail: `${i.label || "Revenu"}${i.note ? " · 📝 " + i.note : ""}`, name: i.label });
+    if (i.type === "oneoff" && i.date === k) events.push({ incomeId: i.id, type: "income", text: "💰 +" + money(i.amount), detail: `${i.label || "Revenu"}${i.note ? " · 📝 " + i.note : ""}`, name: i.label });
     if (i.type === "recurrent" && num(i.day) === day) events.push({ type: "income", text: "💰 +" + money(i.amount), detail: i.label || "Revenu récurrent", name: i.label });
   });
   state.expenses.forEach(e => {
@@ -459,7 +503,9 @@ function openDay(dateKey, fromCredits = false) {
   const eventHtml = events.length ? events.map(e => {
     const actions = e.expenseId
       ? `<div class="event-actions"><button class="small-btn" data-exp-edit="${e.expenseId}">✏️ Modifier</button><button class="danger" data-exp-del="${e.expenseId}">Supprimer</button></div>`
-      : "";
+      : e.incomeId
+        ? `<div class="event-actions"><button class="small-btn" data-income-edit="${e.incomeId}">✏️ Modifier</button><button class="danger" data-income-del="${e.incomeId}">Supprimer</button></div>`
+        : "";
     return `<div class="day-event-row"><div><strong>${e.text}</strong><span class="muted">${esc(e.detail || e.name || "")}</span></div>${actions}</div>`;
   }).join("") : `<p class="muted">Aucune opération.</p>`;
   const extra = fromCredits ? `<p class="muted">Tu peux créer ton crédit depuis cette date.</p>` : "";
@@ -467,6 +513,8 @@ function openDay(dateKey, fromCredits = false) {
   $("newOperation").onclick = () => openOperation(dateKey, "calendar");
   document.querySelectorAll("[data-exp-edit]").forEach(b => b.onclick = () => editExpense(b.dataset.expEdit));
   document.querySelectorAll("[data-exp-del]").forEach(b => b.onclick = () => deleteExpense(b.dataset.expDel));
+  document.querySelectorAll("[data-income-edit]").forEach(b => b.onclick = () => editIncome(b.dataset.incomeEdit));
+  document.querySelectorAll("[data-income-del]").forEach(b => b.onclick = () => deleteIncome(b.dataset.incomeDel));
 }
 
 
@@ -504,6 +552,52 @@ function deleteExpense(id) {
   if (expenseAffectsCurrentBalance(e)) state.balance += num(e.amount);
   state.expenses = state.expenses.filter(x => x.id !== id);
   save(); closeModal(); renderAll();
+}
+
+
+function incomeAffectsCurrentBalance(i) {
+  return i && i.date && i.date <= todayKey() && i.type === "oneoff";
+}
+
+function editIncome(id) {
+  const i = state.incomes.find(x => x.id === id);
+  if (!i) return;
+  const oldApplied = incomeAffectsCurrentBalance(i);
+  openModal("✏️ Modifier le revenu",
+    `<div class="form-group"><label>Date</label><input id="riDate" type="date" value="${esc(i.date || todayKey())}"></div>
+     <div class="form-group"><label>Origine</label><input id="riName" value="${esc(i.name || i.origin || "")}"></div>
+     <div class="form-group"><label>Montant (€)</label><input id="riAmount" type="number" step="0.01" value="${num(i.amount)}"></div>
+     <div class="form-actions"><button class="primary" id="saveIncomeEdit">Enregistrer</button><button class="small-btn" id="cancelIncomeEdit">Annuler</button></div>`
+  );
+  $("cancelIncomeEdit").onclick = closeModal;
+  $("saveIncomeEdit").onclick = () => {
+    const date = $("riDate").value;
+    const amount = num($("riAmount").value);
+    const name = $("riName").value.trim();
+    if (!date || amount <= 0) return alert("Vérifie les valeurs.");
+
+    if (oldApplied) state.balance -= num(i.amount);
+    i.date = date;
+    i.amount = amount;
+    i.name = name;
+    i.origin = name;
+    if (incomeAffectsCurrentBalance(i)) state.balance += amount;
+
+    save();
+    closeModal();
+    renderAll();
+  };
+}
+
+function deleteIncome(id) {
+  const i = state.incomes.find(x => x.id === id);
+  if (!i) return;
+  if (!confirm("Supprimer ce revenu ?")) return;
+  if (incomeAffectsCurrentBalance(i)) state.balance -= num(i.amount);
+  state.incomes = state.incomes.filter(x => x.id !== id);
+  save();
+  closeModal();
+  renderAll();
 }
 
 /* =============================
