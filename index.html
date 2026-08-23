@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#08111f">
-<title>Finance Quest V4.4.6</title>
+<title>Finance Quest V4.4.11</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="stylesheet" href="style.css">
 </head>
@@ -42,7 +42,7 @@
 </section>
 
 <section id="creditsScreen" class="screen">
-  <div class="section-head"><h2>🏦 Crédits</h2><button id="addCreditBtn" class="primary-btn">＋ Crédit</button></div>
+  <div class="section-head"><h2>🏦 Crédits</h2><div class="section-actions"><button id="resetCreditsBtn" class="small-btn">🗑️ Supprimer tous les crédits</button><button id="addCreditBtn" class="primary-btn">＋ Crédit</button></div></div>
   <div class="panel"><div class="summary-grid">
     <div>Mensualités<strong id="creditsMonthlySummary">0,00 €</strong></div>
     <div>Dette restante<strong id="debtSummary">0,00 €</strong></div>
@@ -53,7 +53,7 @@
 </section>
 
 <section id="subscriptionsScreen" class="screen">
-  <div class="section-head"><h2>🔄 Abonnements</h2><button id="addSubscriptionBtn" class="primary-btn">＋ Abonnement</button></div>
+  <div class="section-head"><h2>🔄 Abonnements</h2><div class="section-actions"><button id="resetSubscriptionsBtn" class="small-btn">🗑️ Supprimer tous les abonnements</button><button id="addSubscriptionBtn" class="primary-btn">＋ Abonnement</button></div></div>
   <div class="panel"><div class="summary-grid">
     <div>Total / mois<strong id="subscriptionMonthlySummary">0,00 €</strong></div>
     <div>Total / an<strong id="subscriptionAnnualSummary">0,00 €</strong></div>
@@ -89,6 +89,6 @@
     <div id="modalBody"></div>
   </div>
 </div>
-<script src="app.js?v=4.4.8"></script>
+<script src="app.js?v=4.4.11"></script>
 </body>
 </html>

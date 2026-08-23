@@ -87,6 +87,51 @@ function iso(d) {
   return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
 }
 function localDate(key) { return new Date(key + "T12:00:00"); }
+
+function recalculateBalanceFromBase(baseBalance) {
+  let result = num(baseBalance);
+  const now = new Date();
+  const today = todayKey();
+  const currentMonth = monthKey(now);
+
+  // Revenus déjà réellement reçus.
+  state.incomes.forEach(i => {
+    if (i.type === "oneoff" && i.received === true && i.date && i.date <= today) {
+      result += num(i.amount);
+    }
+  });
+
+  // Dépenses immédiates déjà passées.
+  state.expenses.forEach(e => {
+    if (e.payment !== "deferred" && e.date && e.date <= today) {
+      result -= num(e.amount);
+    }
+  });
+
+  // Première échéance d'un crédit déjà appliquée au solde.
+  state.credits.forEach(c => {
+    if (c.balanceAdjustedForFirstPayment === true) {
+      result -= num(c.monthly);
+    }
+  });
+
+  // Abonnement déjà prélevé.
+  state.subscriptions.forEach(sub => {
+    if (sub.active !== false && sub.lastAppliedDue) {
+      result -= num(sub.amount);
+    }
+  });
+
+  // Prélèvement récurrent déjà prélevé ce mois-ci.
+  state.bills.forEach(b => {
+    if (b.active !== false && b.lastAppliedMonth === currentMonth) {
+      result -= num(b.amount);
+    }
+  });
+
+  return result;
+}
+
 function uid(p) { return p + "_" + Date.now() + "_" + Math.random().toString(36).slice(2, 7); }
 function todayKey() { return iso(new Date()); }
 function isFutureDate(key) { return key > todayKey(); }
@@ -276,6 +321,20 @@ function setup() {
     renderOperationForm("credit", todayKey());
   };
   $("addSubscriptionBtn").onclick = () => openOperation(todayKey(), "subscription");
+  $("resetCreditsBtn").onclick = () => {
+    if (!state.credits.length) return;
+    if (!confirm("Supprimer tous les crédits ?")) return;
+    state.credits.forEach(c => { if (c.balanceAdjustedForFirstPayment) state.balance += num(c.monthly); });
+    state.credits = [];
+    save(); renderAll();
+  };
+  $("resetSubscriptionsBtn").onclick = () => {
+    if (!state.subscriptions.length) return;
+    if (!confirm("Supprimer tous les abonnements ?")) return;
+    state.subscriptions.forEach(s => { if (s.lastAppliedDue) state.balance += num(s.amount); });
+    state.subscriptions = [];
+    save(); renderAll();
+  };
   $("modalClose").onclick = closeModal;
   $("modal").onclick = e => { if (e.target === $("modal")) closeModal(); };
   document.querySelectorAll(".view-tab").forEach(b => b.onclick = () => { chartMode = b.dataset.view; renderEvolution(); });
@@ -341,7 +400,7 @@ function dayEvents(date) {
     if (i.type === "recurrent" && num(i.day) === day) events.push({ type: "income", text: "💰 +" + money(i.amount), detail: i.label || "Revenu récurrent", name: i.label });
   });
   state.expenses.forEach(e => {
-    if (e.date === k) events.push({ type: e.payment === "deferred" ? "deferred" : "expense", text: (e.payment === "deferred" ? "💳 " : "🛒 ") + money(e.amount), detail: `${e.category || "Dépense"}${e.payment === "deferred" ? " · débit différé" : ""}${e.note ? " · 📝 " + e.note : ""}`, name: e.category });
+    if (e.date === k) events.push({ expenseId: e.id, type: e.payment === "deferred" ? "deferred" : "expense", text: (e.payment === "deferred" ? "💳 " : "🛒 ") + money(e.amount), detail: `${e.category || "Dépense"}${e.payment === "deferred" ? " · débit différé" : ""}${e.note ? " · 📝 " + e.note : ""}`, name: e.category });
   });
   state.bills.forEach(b => {
     if (num(b.day) === day && b.active !== false) events.push({ type: "credit", text: "🔄 " + b.name + " -" + money(b.amount), detail: `Prélèvement récurrent${b.note ? " · 📝 " + b.note : ""}`, name: b.name });
@@ -386,10 +445,54 @@ function renderCalendar() {
 
 function openDay(dateKey, fromCredits = false) {
   const date = localDate(dateKey), events = dayEvents(date);
-  const eventHtml = events.length ? events.map(e => `<div class="day-event-row"><strong>${e.text}</strong><span class="muted">${esc(e.detail || e.name || "")}</span></div>`).join("") : `<p class="muted">Aucune opération.</p>`;
+  const eventHtml = events.length ? events.map(e => {
+    const actions = e.expenseId
+      ? `<div class="event-actions"><button class="small-btn" data-exp-edit="${e.expenseId}">✏️ Modifier</button><button class="danger" data-exp-del="${e.expenseId}">Supprimer</button></div>`
+      : "";
+    return `<div class="day-event-row"><div><strong>${e.text}</strong><span class="muted">${esc(e.detail || e.name || "")}</span></div>${actions}</div>`;
+  }).join("") : `<p class="muted">Aucune opération.</p>`;
   const extra = fromCredits ? `<p class="muted">Tu peux créer ton crédit depuis cette date.</p>` : "";
   openModal("📅 " + date.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" }), `<button class="primary" id="newOperation">＋ Nouvelle opération</button><div class="panel">${eventHtml}</div>${extra}`);
   $("newOperation").onclick = () => openOperation(dateKey, "calendar");
+  document.querySelectorAll("[data-exp-edit]").forEach(b => b.onclick = () => editExpense(b.dataset.expEdit));
+  document.querySelectorAll("[data-exp-del]").forEach(b => b.onclick = () => deleteExpense(b.dataset.expDel));
+}
+
+
+function expenseAffectsCurrentBalance(e) {
+  return e && e.payment !== "deferred" && !isFutureDate(e.date);
+}
+function editExpense(id) {
+  const e = state.expenses.find(x => x.id === id);
+  if (!e) return;
+  const oldApplied = expenseAffectsCurrentBalance(e);
+  openModal("✏️ Modifier la dépense", `<div class="form-group"><label>Date</label><input id="eeDate" type="date" value="${esc(e.date)}"></div><div class="form-group"><label>Montant (€)</label><input id="eeAmount" type="number" step="0.01" value="${num(e.amount)}"></div><div class="form-group"><label>Nature</label><select id="eeCategory"><option ${e.category==="Alimentation"?"selected":""}>Alimentation</option><option ${e.category==="Carburant"?"selected":""}>Carburant</option><option ${e.category==="Loisirs"?"selected":""}>Loisirs</option><option ${e.category==="Parfums"?"selected":""}>Parfums</option><option ${e.category==="Sport"?"selected":""}>Sport</option><option ${e.category==="Maison"?"selected":""}>Maison</option><option ${e.category==="Transport"?"selected":""}>Transport</option><option ${e.category==="Divers"?"selected":""}>Divers</option></select></div><div class="form-group"><label>Mode de paiement</label><select id="eePayment"><option value="deferred" ${e.payment==="deferred"?"selected":""}>💳 Carte — débit différé</option><option value="instant" ${e.payment==="instant"?"selected":""}>💳 Carte — débit immédiat</option><option value="cash" ${e.payment==="cash"?"selected":""}>💵 Espèces</option><option value="transfer" ${e.payment==="transfer"?"selected":""}>🏦 Virement</option></select></div><div class="form-group"><label>Note / commentaire</label><textarea id="eeNote" rows="3">${esc(e.note || "")}</textarea></div><div class="form-actions"><button class="primary" id="saveExpenseEdit">Enregistrer</button><button class="small-btn" id="cancelExpenseEdit">Annuler</button></div>`);
+  $("cancelExpenseEdit").onclick = closeModal;
+  $("saveExpenseEdit").onclick = () => {
+    const newDate = $("eeDate").value;
+    const newAmount = num($("eeAmount").value);
+    const newPayment = $("eePayment").value;
+    if (!newDate || newAmount <= 0) return alert("Vérifie les valeurs.");
+
+    // Remove the old effect, then apply the new effect exactly once.
+    if (oldApplied) state.balance += num(e.amount);
+    e.date = newDate;
+    e.amount = newAmount;
+    e.category = $("eeCategory").value;
+    e.payment = newPayment;
+    e.note = $("eeNote").value.trim();
+    if (expenseAffectsCurrentBalance(e)) state.balance -= newAmount;
+
+    save(); closeModal(); renderAll();
+  };
+}
+function deleteExpense(id) {
+  const e = state.expenses.find(x => x.id === id);
+  if (!e) return;
+  if (!confirm("Supprimer cette dépense ?")) return;
+  if (expenseAffectsCurrentBalance(e)) state.balance += num(e.amount);
+  state.expenses = state.expenses.filter(x => x.id !== id);
+  save(); closeModal(); renderAll();
 }
 
 /* =============================
@@ -651,13 +754,11 @@ function settingsModal() {
     const baseBalance = num($("sb").value);
     state.settings.manualBalanceBase = baseBalance;
     state.settings.overdraft = num($("so").value);
-    const creditAlreadyApplied = state.credits
-      .filter(c => c.balanceAdjustedForFirstPayment)
-      .reduce((sum, c) => sum + num(c.monthly), 0);
-    state.balance = baseBalance - creditAlreadyApplied;
+    // The entered amount is the starting balance.
+    // Rebuild the current balance from that base plus operations already applied.
+    state.balance = recalculateBalanceFromBase(baseBalance);
     save(); closeModal(); renderAll();
   };
-  $("resetAll").onclick = () => { if (confirm("Effacer toutes les données ?")) { state = clone(DEFAULT); save(); closeModal(); renderAll(); } };
 }
 function simulation() {
   openModal("🔮 Simulation", `<div class="form-group"><label>Revenu ponctuel (€)</label><input id="si" type="number" step="0.01" value="0"></div><div class="form-group"><label>Dépense immédiate (€)</label><input id="sx" type="number" step="0.01" value="0"></div><div class="form-group"><label>Nouveau crédit — mensualité (€)</label><input id="sc" type="number" step="0.01" value="0"></div><div class="form-group"><label>Durée (mois)</label><input id="sm" type="number" min="1" value="4"></div><div id="sr" class="sim-card">Entre les valeurs puis calcule.</div><button class="primary" id="goSim">Calculer</button>`);

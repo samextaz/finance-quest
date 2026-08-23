@@ -20,3 +20,8 @@ main{max-width:760px;margin:auto;padding:16px}.screen{display:none}.screen.activ
 textarea{resize:vertical;min-height:64px}
 @media(max-width:520px){input,select,textarea,button{font-size:16px;-webkit-text-size-adjust:100%;}}
 @media(max-width:520px){.bottom-nav{grid-template-columns:repeat(5,1fr)}.nav-btn{font-size:18px;padding:5px 2px}.nav-btn small{font-size:10px}.credit-right{min-width:110px}.credit-right .small-btn,.credit-right .danger{font-size:11px;padding:7px 8px}}
+
+
+.section-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.day-event-row{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}
+.event-actions{display:flex;gap:6px;align-items:center}
