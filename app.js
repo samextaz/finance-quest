@@ -19,6 +19,7 @@ const DEFAULT = {
 };
 
 let state = load();
+upgradeStoredState();
 settleDueOperations();
 let viewMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 let chartMode = "balance";
@@ -34,11 +35,37 @@ function settleDueOperations() {
       i.received = true;
       changed = true;
     }
+    if (i.type === "recurrent") {
+      const due = recurringDateForMonth(i.day, today.getFullYear(), today.getMonth());
+      if (iso(due) <= tk && i.lastAppliedMonth !== monthKey(today)) {
+        state.balance += num(i.amount);
+        i.lastAppliedMonth = monthKey(today);
+        changed = true;
+      }
+    }
+  });
+  state.expenses.forEach(e => {
+    const due = e.payment === "deferred" ? deferredDebitDate(e) : e.date;
+    if (due && due <= tk && !e.balanceApplied) {
+      state.balance -= num(e.amount);
+      e.balanceApplied = true;
+      changed = true;
+    }
+  });
+  state.credits.forEach(c => {
+    ensureCreditLedger(c);
+    for (let i = 1; i <= creditTotalMonths(c); i++) {
+      if (iso(creditInstallmentDate(c, i)) <= tk && !c.appliedInstallments.includes(i)) {
+        state.balance -= num(c.monthly);
+        c.appliedInstallments.push(i);
+        changed = true;
+      }
+    }
   });
   const currentMonth = monthKey(today);
   state.bills.forEach(b => {
-    const day = Math.min(31, Math.max(1, Math.round(num(b.day))));
-    if (b.active !== false && today.getDate() >= day && b.lastAppliedMonth !== currentMonth) {
+    const due = recurringDateForMonth(b.day, today.getFullYear(), today.getMonth());
+    if (b.active !== false && iso(due) <= tk && b.lastAppliedMonth !== currentMonth) {
       state.balance -= num(b.amount);
       b.lastAppliedMonth = currentMonth;
       changed = true;
@@ -52,6 +79,24 @@ function load() {
     const x = localStorage.getItem(KEY);
     return x ? merge(clone(DEFAULT), JSON.parse(x)) : clone(DEFAULT);
   } catch (_) { return clone(DEFAULT); }
+}
+function upgradeStoredState() {
+  let changed = false;
+  state.expenses.forEach(e => {
+    // Les versions précédentes débitaient déjà toute dépense immédiate datée
+    // d'aujourd'hui ou du passé au moment de sa création.
+    if (e.payment !== "deferred" && e.balanceApplied === undefined && e.date <= todayKey()) {
+      e.balanceApplied = true;
+      changed = true;
+    }
+  });
+  state.credits.forEach(c => {
+    if (!Array.isArray(c.appliedInstallments)) {
+      c.appliedInstallments = c.balanceAdjustedForFirstPayment ? [1] : [];
+      changed = true;
+    }
+  });
+  if (changed) save();
 }
 function merge(a, b) {
   return {
@@ -82,6 +127,16 @@ const MONTHS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet"
 function monthLabel(d) { return MONTHS[d.getMonth()] + " " + d.getFullYear(); }
 function monthKey(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; }
 function sameMonth(key, d) { const x = localDate(key); return x.getFullYear() === d.getFullYear() && x.getMonth() === d.getMonth(); }
+function recurringDateForMonth(day, year, month) {
+  const safeDay = Math.min(31, Math.max(1, Math.round(num(day))));
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  return new Date(year, month, Math.min(safeDay, lastDay), 12);
+}
+function deferredDebitDate(expense) {
+  if (expense.deferredDebitDate) return expense.deferredDebitDate;
+  const date = localDate(expense.date);
+  return iso(new Date(date.getFullYear(), date.getMonth() + 1, 0, 12));
+}
 
 /* =============================
    CRÉDITS / ÉCHÉANCES
@@ -95,10 +150,14 @@ function addMonthsPreserveDay(date, months) {
   return new Date(base.getFullYear(), targetMonth, Math.min(date.getDate(), lastDay), 12);
 }
 function creditInstallmentDate(c, index) { return addMonthsPreserveDay(creditStart(c), index - 1); }
+function ensureCreditLedger(c) {
+  if (!Array.isArray(c.appliedInstallments)) c.appliedInstallments = c.balanceAdjustedForFirstPayment ? [1] : [];
+}
 function creditPaidCount(c, asOf = new Date()) {
   const total = creditTotalMonths(c);
   let paid = 0;
-  for (let i = 1; i <= total; i++) if (creditInstallmentDate(c, i) <= asOf) paid++;
+  const asOfKey = iso(asOf);
+  for (let i = 1; i <= total; i++) if (iso(creditInstallmentDate(c, i)) <= asOfKey) paid++;
   return Math.min(total, paid);
 }
 function creditStatus(c, asOf = new Date()) {
@@ -127,8 +186,17 @@ function recurringIncome() { return state.incomes.filter(i => i.type === "recurr
 function futureOneOffIncomeThrough(endDate) {
   return state.incomes.filter(i => i.type === "oneoff" && i.date > todayKey() && localDate(i.date) <= endDate).reduce((s, i) => s + num(i.amount), 0);
 }
+function recurringIncomeThroughMonth(endDate) {
+  const now = new Date();
+  return state.incomes.filter(i => i.type === "recurrent").reduce((sum, i) => {
+    const due = recurringDateForMonth(i.day, now.getFullYear(), now.getMonth());
+    return sum + (iso(due) > todayKey() && due <= endDate ? num(i.amount) : 0);
+  }, 0);
+}
 function pendingIncome() {
-  return state.incomes.filter(i => i.date && i.date > todayKey()).reduce((s, i) => s + num(i.amount), 0);
+  const oneOff = state.incomes.filter(i => i.type === "oneoff" && i.date && i.date > todayKey()).reduce((s, i) => s + num(i.amount), 0);
+  const end = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0, 12);
+  return oneOff + recurringIncomeThroughMonth(end);
 }
 function monthExpenses() {
   const n = new Date();
@@ -136,17 +204,16 @@ function monthExpenses() {
 }
 function monthDeferred() {
   const n = new Date();
-  return state.expenses.filter(e => e.payment === "deferred" && sameMonth(e.date, n)).reduce((s, e) => s + num(e.amount), 0);
+  return state.expenses.filter(e => e.payment === "deferred" && !e.balanceApplied && sameMonth(e.date, n)).reduce((s, e) => s + num(e.amount), 0);
 }
 function futureDeferredThrough(endDate) {
-  return state.expenses.filter(e => e.payment === "deferred" && e.date >= todayKey() && localDate(e.date) <= endDate).reduce((s, e) => s + num(e.amount), 0);
+  return state.expenses.filter(e => e.payment === "deferred" && !e.balanceApplied && deferredDebitDate(e) > todayKey() && localDate(deferredDebitDate(e)) <= endDate).reduce((s, e) => s + num(e.amount), 0);
 }
 function recurringBillsThroughMonth(endDate) {
   const now = new Date();
   return state.bills.filter(b => b.active !== false).reduce((sum, b) => {
-    const day = Math.min(31, Math.max(1, Math.round(num(b.day))));
-    const due = new Date(now.getFullYear(), now.getMonth(), day, 12);
-    return sum + (due > now && due <= endDate ? num(b.amount) : 0);
+    const due = recurringDateForMonth(b.day, now.getFullYear(), now.getMonth());
+    return sum + (iso(due) > todayKey() && due <= endDate ? num(b.amount) : 0);
   }, 0);
 }
 function oneOffIncomeThroughMonth(endDate) { return futureOneOffIncomeThrough(endDate); }
@@ -161,6 +228,7 @@ function forecast() {
   const end = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0, 12);
   return num(state.balance)
     + oneOffIncomeThroughMonth(end)
+    + recurringIncomeThroughMonth(end)
     - recurringBillsThroughMonth(end)
     - futureCreditThrough(end)
     - futureDeferredThrough(end)
@@ -168,15 +236,14 @@ function forecast() {
 }
 function billsDueNowOrLater() {
   const now = new Date();
-  const day = now.getDate();
-  const billTotal = state.bills.filter(b => b.active !== false && num(b.day) > day).reduce((s, b) => s + num(b.amount), 0);
+  const billTotal = state.bills.filter(b => b.active !== false && iso(recurringDateForMonth(b.day, now.getFullYear(), now.getMonth())) > todayKey()).reduce((s, b) => s + num(b.amount), 0);
   const creditTotal = state.credits.reduce((s, c) => s + creditFutureInstallmentsThrough(c, now, new Date(now.getFullYear(), now.getMonth() + 1, 0, 12)), 0);
-  const deferred = state.expenses.filter(e => e.payment === "deferred" && e.date >= todayKey() && sameMonth(e.date, now)).reduce((s, e) => s + num(e.amount), 0);
+  const deferred = state.expenses.filter(e => e.payment === "deferred" && !e.balanceApplied && deferredDebitDate(e) > todayKey() && sameMonth(deferredDebitDate(e), now)).reduce((s, e) => s + num(e.amount), 0);
   return billTotal + creditTotal + deferred;
 }
 function monthIncomeReceived() {
   const n = new Date();
-  return state.incomes.filter(i => sameMonth(i.date, n) && i.date <= todayKey()).reduce((s, i) => s + num(i.amount), 0);
+  return state.incomes.filter(i => (i.type === "recurrent" && i.lastAppliedMonth === monthKey(n)) || (i.type !== "recurrent" && sameMonth(i.date, n) && i.date <= todayKey())).reduce((s, i) => s + num(i.amount), 0);
 }
 function monthCreditTotal() { return state.credits.reduce((s, c) => s + (creditStatus(c).paid > 0 && sameMonth(iso(creditStart(c)), new Date()) ? 0 : 0), 0); }
 
@@ -239,20 +306,21 @@ function dayEvents(date) {
   const k = iso(date), day = date.getDate(), events = [];
   state.incomes.forEach(i => {
     if (i.type === "oneoff" && i.date === k) events.push({ type: "income", text: "💰 +" + money(i.amount), detail: i.label || "Revenu", name: i.label });
-    if (i.type === "recurrent" && num(i.day) === day) events.push({ type: "income", text: "💰 +" + money(i.amount), detail: i.label || "Revenu récurrent", name: i.label });
+    if (i.type === "recurrent" && iso(recurringDateForMonth(i.day, date.getFullYear(), date.getMonth())) === k) events.push({ type: "income", text: "💰 +" + money(i.amount), detail: i.label || "Revenu récurrent", name: i.label });
   });
   state.expenses.forEach(e => {
     if (e.date === k) events.push({ type: e.payment === "deferred" ? "deferred" : "expense", text: (e.payment === "deferred" ? "💳 " : "🛒 ") + money(e.amount), detail: `${e.category || "Dépense"}${e.payment === "deferred" ? " · débit différé" : ""}`, name: e.category });
   });
   state.bills.forEach(b => {
-    if (num(b.day) === day && b.active !== false) events.push({ type: "credit", text: "🔄 " + b.name + " -" + money(b.amount), detail: "Prélèvement récurrent", name: b.name });
+    if (b.active !== false && iso(recurringDateForMonth(b.day, date.getFullYear(), date.getMonth())) === k) events.push({ type: "credit", text: "🔄 " + b.name + " -" + money(b.amount), detail: "Prélèvement récurrent", name: b.name });
   });
   state.credits.forEach(c => {
     const total = creditTotalMonths(c);
     for (let i = 1; i <= total; i++) {
       const due = creditInstallmentDate(c, i);
       if (iso(due) !== k) continue;
-      const isPaid = due <= new Date();
+      ensureCreditLedger(c);
+      const isPaid = c.appliedInstallments.includes(i);
       const remainingAfter = Math.max(0, total - i);
       events.push({
         type: "credit", creditId: c.id, installment: i, total, paid: isPaid,
@@ -300,19 +368,24 @@ function renderOperationForm(type, date) {
     $("saveOp").onclick = () => {
       const amount = num($("oa").value), payment = $("op").value;
       if (amount <= 0) return alert("Montant invalide.");
-      state.expenses.push({ id: uid("exp"), date, amount, category: $("on").value, payment });
-      if (!isFutureDate(date) && payment !== "deferred") state.balance -= amount;
+      const expense = { id: uid("exp"), date, amount, category: $("on").value, payment, balanceApplied: false };
+      if (payment === "deferred") expense.deferredDebitDate = iso(new Date(localDate(date).getFullYear(), localDate(date).getMonth() + 1, 0, 12));
+      state.expenses.push(expense);
+      if (!isFutureDate(date) && payment !== "deferred") { state.balance -= amount; expense.balanceApplied = true; }
       save(); closeModal(); renderAll();
     };
   }
   if (type === "income") {
-    box.innerHTML = `<div class="form-group"><label>Origine</label><input id="ol" placeholder="Europcar, Domino's, vente..."></div><div class="form-group"><label>Montant (€)</label><input id="oa" type="number" step="0.01"></div><p class="muted">Une date future reste dans « Revenus à recevoir » et ne modifie pas le solde réel avant son arrivée.</p><button class="primary" id="saveOp">Enregistrer</button>`;
+    box.innerHTML = `<div class="form-group"><label>Origine</label><input id="ol" placeholder="Europcar, Domino's, vente..."></div><div class="form-group"><label>Montant (€)</label><input id="oa" type="number" step="0.01"></div><div class="form-group"><label>Fréquence</label><select id="of"><option value="oneoff">Ponctuel</option><option value="recurrent">Chaque mois</option></select></div><p class="muted">Un revenu futur reste dans « Revenus à recevoir » et ne modifie pas le solde réel avant sa date.</p><button class="primary" id="saveOp">Enregistrer</button>`;
     $("saveOp").onclick = () => {
       const amount = num($("oa").value);
       if (amount <= 0) return alert("Montant invalide.");
-      const future = isFutureDate(date);
-      state.incomes.push({ id: uid("inc"), label: $("ol").value.trim() || "Revenu", amount, date, type: "oneoff", received: !future });
-      if (!future) state.balance += amount;
+      const type = $("of").value, future = isFutureDate(date);
+      const income = { id: uid("inc"), label: $("ol").value.trim() || "Revenu", amount, date, type, received: type === "oneoff" && !future };
+      if (type === "recurrent") { income.day = localDate(date).getDate(); income.lastAppliedMonth = ""; }
+      state.incomes.push(income);
+      if (type === "oneoff" && !future) state.balance += amount;
+      if (type === "recurrent" && !future) { state.balance += amount; income.lastAppliedMonth = monthKey(new Date()); }
       save(); closeModal(); renderAll();
     };
   }
@@ -321,7 +394,7 @@ function renderOperationForm(type, date) {
     $("saveOp").onclick = () => {
       const monthly = num($("cm").value), months = Math.max(1, Math.round(num($("cr").value))), d = localDate(date), pastOrToday = !isFutureDate(date);
       if (monthly <= 0) return alert("Mensualité invalide.");
-      const credit = { id: uid("credit"), name: $("cl").value.trim() || "Nouveau crédit", monthly, totalMonths: months, startDate: date, day: d.getDate(), firstPaymentApplied: pastOrToday, balanceAdjustedForFirstPayment: pastOrToday };
+      const credit = { id: uid("credit"), name: $("cl").value.trim() || "Nouveau crédit", monthly, totalMonths: months, startDate: date, day: d.getDate(), firstPaymentApplied: pastOrToday, balanceAdjustedForFirstPayment: pastOrToday, appliedInstallments: pastOrToday ? [1] : [] };
       state.credits.push(credit);
       if (pastOrToday) state.balance -= monthly;
       save(); closeModal(); renderAll();
@@ -335,7 +408,7 @@ function renderOperationForm(type, date) {
       const day = Math.min(31, Math.max(1, Math.round(num($("bd").value))));
       const bill = { id: uid("bill"), name: $("bl").value.trim() || "Prélèvement", amount, day, active: true, lastAppliedMonth: "" };
       state.bills.push(bill);
-      if (day <= new Date().getDate()) { state.balance -= amount; bill.lastAppliedMonth = monthKey(new Date()); }
+      if (iso(recurringDateForMonth(day, new Date().getFullYear(), new Date().getMonth())) <= todayKey()) { state.balance -= amount; bill.lastAppliedMonth = monthKey(new Date()); }
       save(); closeModal(); renderAll();
     };
   }
@@ -357,7 +430,10 @@ function renderCredits() {
   document.querySelectorAll("[data-del]").forEach(b => b.onclick = () => {
     const c = state.credits.find(x => x.id === b.dataset.del); if (!c) return;
     if (confirm("Supprimer ce crédit ?")) {
-      if (c.balanceAdjustedForFirstPayment) state.balance += num(c.monthly);
+      ensureCreditLedger(c);
+      // On annule uniquement les débits que Finance Quest avait lui-même
+      // inscrits dans son solde : aucun débit fantôme ne reste après suppression.
+      state.balance += num(c.monthly) * c.appliedInstallments.length;
       state.credits = state.credits.filter(x => x.id !== b.dataset.del);
       save(); renderAll();
     }
@@ -367,20 +443,26 @@ function renderCredits() {
 }
 function editCredit(id) {
   const c = state.credits.find(x => x.id === id); if (!c) return;
-  const oldMonthly = num(c.monthly), oldApplied = !!c.balanceAdjustedForFirstPayment;
+  ensureCreditLedger(c);
+  const oldMonthly = num(c.monthly), oldAppliedInstallments = [...c.appliedInstallments];
   const st = creditStatus(c);
   openModal("✏️ Modifier le crédit", `<div class="panel"><p><strong>${esc(c.name)}</strong></p><p class="muted">Actuellement : ${st.paid}/${st.total} payée${st.paid > 1 ? "s" : "s"}, ${st.remaining} restante${st.remaining > 1 ? "s" : ""}.</p></div><div class="form-group"><label>Organisme / nom</label><input id="el" value="${esc(c.name)}"></div><div class="form-group"><label>Mensualité (€)</label><input id="em" type="number" step="0.01" value="${num(c.monthly)}"></div><div class="form-group"><label>Nombre total de mensualités</label><input id="er" type="number" min="1" value="${creditTotalMonths(c)}"></div><div class="form-group"><label>Date du premier paiement</label><input id="ed" type="date" value="${esc(c.startDate)}"></div><p class="muted">Le calendrier et la dette restante seront recalculés.</p><div class="form-actions"><button class="primary" id="saveEdit">Enregistrer</button><button class="small-btn" id="cancelEdit">Annuler</button></div>`);
   $("cancelEdit").onclick = closeModal;
   $("saveEdit").onclick = () => {
     const monthly = num($("em").value), total = Math.max(1, Math.round(num($("er").value))), start = $("ed").value;
     if (monthly <= 0 || !start) return alert("Vérifie les valeurs.");
-    const newApplied = !isFutureDate(start) && (oldApplied || start === todayKey());
-    if (oldApplied) state.balance += oldMonthly;
+    // On retire les échéances déjà inscrites, puis on réapplique exactement
+    // celles qui sont réellement dues avec le nouveau calendrier.
+    state.balance += oldMonthly * oldAppliedInstallments.length;
     c.name = $("el").value.trim() || "Crédit";
     c.monthly = monthly; c.totalMonths = total; c.startDate = start; c.day = localDate(start).getDate();
-    c.firstPaymentApplied = newApplied;
-    c.balanceAdjustedForFirstPayment = newApplied;
-    if (newApplied) state.balance -= monthly;
+    c.appliedInstallments = [];
+    for (let i = 1; i <= total; i++) {
+      if (iso(creditInstallmentDate(c, i)) <= todayKey()) c.appliedInstallments.push(i);
+    }
+    c.firstPaymentApplied = c.appliedInstallments.includes(1);
+    c.balanceAdjustedForFirstPayment = c.firstPaymentApplied;
+    state.balance -= monthly * c.appliedInstallments.length;
     save(); closeModal(); renderAll();
   };
 }
@@ -400,8 +482,8 @@ function projection(months) {
         return x.type === "oneoff" && x.date && localDate(x.date) >= start && localDate(x.date) <= end ? s + num(x.amount) : s;
       }, 0);
       const bills = state.bills.filter(b => b.active !== false).reduce((s, b) => {
-        const day = Math.min(31, Math.max(1, Math.round(num(b.day))));
-        return s + (new Date(start.getFullYear(), start.getMonth(), day, 12) >= start && new Date(start.getFullYear(), start.getMonth(), day, 12) <= end ? num(b.amount) : 0);
+        const due = recurringDateForMonth(b.day, start.getFullYear(), start.getMonth());
+        return s + (due >= start && due <= end ? num(b.amount) : 0);
       }, 0);
       const credits = state.credits.reduce((s, c) => {
         for (let n = 1; n <= creditTotalMonths(c); n++) {
