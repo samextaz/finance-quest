@@ -287,10 +287,10 @@ function forecast() {
   // but it DOES reduce the projected end-of-month balance. Its calendar
   // date is the purchase date, not the actual bank debit date, so even
   // a purchase entered earlier in the current month must remain in the
-  // current-month forecast.
-  const deferredThisMonth = state.expenses
-    .filter(e => e.payment === "deferred" && sameMonth(e.date, now))
-    .reduce((s, e) => s + num(e.amount), 0);
+  // current-month forecast. monthDeferred() includes all deferred purchases
+  // recorded in the current month, regardless of whether their purchase date
+  // is before or after today.
+  const deferredThisMonth = monthDeferred();
 
   return num(state.balance)
     + oneOffIncomeThroughMonth(end)
