@@ -265,8 +265,8 @@ function setup() {
   $("simulateBtn").onclick = simulation;
   $("prevMonth").onclick = () => { viewMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() - 1, 1); renderCalendar(); };
   $("nextMonth").onclick = () => { viewMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 1); renderCalendar(); };
-  $("addCreditBtn").onclick = () => openDay(todayKey(), true);
-  $("addSubscriptionBtn").onclick = () => openOperation(todayKey());
+  $("addCreditBtn").onclick = () => openOperation(todayKey(), "credit");
+  $("addSubscriptionBtn").onclick = () => openOperation(todayKey(), "subscription");
   $("modalClose").onclick = closeModal;
   $("modal").onclick = e => { if (e.target === $("modal")) closeModal(); };
   document.querySelectorAll(".view-tab").forEach(b => b.onclick = () => { chartMode = b.dataset.view; renderEvolution(); });
@@ -376,16 +376,35 @@ function openDay(dateKey, fromCredits = false) {
   const eventHtml = events.length ? events.map(e => `<div class="day-event-row"><strong>${e.text}</strong><span class="muted">${esc(e.detail || e.name || "")}</span></div>`).join("") : `<p class="muted">Aucune opération.</p>`;
   const extra = fromCredits ? `<p class="muted">Tu peux créer ton crédit depuis cette date.</p>` : "";
   openModal("📅 " + date.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" }), `<button class="primary" id="newOperation">＋ Nouvelle opération</button><div class="panel">${eventHtml}</div>${extra}`);
-  $("newOperation").onclick = () => openOperation(dateKey);
+  $("newOperation").onclick = () => openOperation(dateKey, "calendar");
 }
 
 /* =============================
    NOUVELLE OPÉRATION
    ============================= */
-function openOperation(defaultDate) {
-  openModal("➕ Nouvelle opération", `<div class="choice-grid"><button class="choice-btn" data-op="expense">💳 Dépense</button><button class="choice-btn" data-op="income">💰 Revenu</button><button class="choice-btn" data-op="credit">🏦 Paiement fractionné</button><button class="choice-btn" data-op="bill">🔄 Prélèvement récurrent</button><button class="choice-btn" data-op="subscription">🎵 Abonnement</button></div><div id="opForm" class="panel muted">Choisis un type.</div>`);
+function openOperation(defaultDate, context = "calendar") {
+  const choicesByContext = {
+    calendar: [
+      ["expense", "💳 Dépense"],
+      ["income", "💰 Revenu"],
+      ["credit", "🏦 Paiement fractionné"],
+      ["subscription", "🎵 Abonnement"]
+    ],
+    credit: [
+      ["expense", "💳 Dépense"],
+      ["credit", "🏦 Paiement fractionné"]
+    ],
+    subscription: [
+      ["subscription", "🎵 Abonnement"]
+    ]
+  };
+  const choices = (choicesByContext[context] || choicesByContext.calendar)
+    .map(([type, label]) => `<button class="choice-btn" data-op="${type}">${label}</button>`)
+    .join("");
+  openModal("➕ Nouvelle opération", `<div class="choice-grid">${choices}</div><div id="opForm" class="panel muted">Choisis un type.</div>`);
   document.querySelectorAll("[data-op]").forEach(b => b.onclick = () => renderOperationForm(b.dataset.op, defaultDate));
 }
+
 function renderOperationForm(type, date) {
   const box = $("opForm");
   if (type === "expense") {
