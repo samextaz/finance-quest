@@ -254,7 +254,7 @@ function pendingIncome() {
 }
 function monthExpenses() {
   const n = new Date();
-  return state.expenses.filter(e => sameMonth(e.date, n)).reduce((s, e) => s + num(e.amount), 0);
+  return totalMonthlyOutflowsForSummary(n.getFullYear(), n.getMonth());
 }
 function monthDeferred() {
   const n = new Date();
