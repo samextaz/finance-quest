@@ -639,6 +639,60 @@ function drawChart() {
   rows.forEach((z, i) => { if (i % 4 === 0) { const xx = p + (w - 2 * p) * i / (rows.length - 1); x.fillText(z.label.slice(0, 3), xx - 7, h - 8); } });
 }
 
+
+function recalcBalanceFromBase(baseBalance) {
+  const base = num(baseBalance);
+  let result = base;
+  const today = todayKey();
+
+  // Apply all one-off incomes already received.
+  state.incomes.forEach(x => {
+    if (!x.date) return;
+    const d = localDate(x.date);
+    if (d && iso(d) <= today && x.type === "oneoff") result += num(x.amount);
+  });
+
+  // Apply recurring income only when its current-month payment is already due,
+  // unless it is already represented by the base balance via a ledger marker.
+  state.incomes.forEach(x => {
+    if (!x.date || x.type !== "recurrent") return;
+    const d = localDate(x.date);
+    if (!d) return;
+    const due = recurringDateForMonth(d.getDate(), d.getFullYear(), d.getMonth());
+    if (iso(due) <= today && x.lastAppliedMonth !== monthKey(new Date())) result += num(x.amount);
+  });
+
+  // Apply already-due credit installments using the existing ledger.
+  state.credits.forEach(c => {
+    ensureCreditLedger(c);
+    const applied = c.appliedInstallments || [];
+    result -= num(c.monthly) * applied.length;
+  });
+
+  // Apply already-due subscriptions/bills exactly once.
+  state.bills.forEach(b => {
+    if (b.active === false) return;
+    const started = !b.startDate || b.startDate <= today;
+    if (!started) return;
+    const now = new Date();
+    const due = recurringDateForMonth(b.day, now.getFullYear(), now.getMonth());
+    if (iso(due) <= today && b.lastAppliedMonth === monthKey(now)) {
+      result -= num(b.amount);
+    }
+  });
+
+  // Apply already-due immediate expenses.
+  state.expenses.forEach(e => {
+    if (!e.date) return;
+    const d = localDate(e.date);
+    if (!d || iso(d) > today) return;
+    if (e.payment === "deferred") return;
+    result -= num(e.amount);
+  });
+
+  return result;
+}
+
 /* =============================
    PARAMÈTRES / SIMULATION
    ============================= */
