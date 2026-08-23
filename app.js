@@ -382,6 +382,18 @@ function closeModal() { $("modal").classList.add("hidden"); $("modalBody").inner
    ACCUEIL
    ============================= */
 
+
+function totalRemainingCreditDebt() {
+  return state.credits.reduce((sum, c) => {
+    if (!c) return sum;
+    if (c.completed === true || c.active === false) return sum;
+    const remaining = c.remainingDebt != null
+      ? num(c.remainingDebt)
+      : Math.max(0, num(c.monthly) * Math.max(0, num(c.totalPayments || c.total || 0) - num(c.paidPayments || c.paid || 0)));
+    return sum + remaining;
+  }, 0);
+}
+
 function totalMonthlyOutflowsForSummary(year, month) {
   const monthStart = new Date(year, month, 1);
   const monthEnd = new Date(year, month + 1, 0, 23, 59, 59);
@@ -397,14 +409,23 @@ function totalMonthlyOutflowsForSummary(year, month) {
 
   // Credit installments that are actually scheduled in this month.
   state.credits.forEach(c => {
+    if (!c || c.completed === true || c.active === false) return;
     ensureCreditLedger(c);
+    let counted = false;
     (c.ledger || []).forEach(item => {
       if (!item.date || item.paid === false) return;
       const d = localDate(item.date);
       if (d && d.getFullYear() === year && d.getMonth() === month) {
-        total += num(c.monthly);
+        total += num(item.amount != null ? item.amount : c.monthly);
+        counted = true;
       }
     });
+    if (!counted && c.nextPaymentDate) {
+      const d = localDate(c.nextPaymentDate);
+      if (d && d.getFullYear() === year && d.getMonth() === month) {
+        total += num(c.monthly);
+      }
+    }
   });
 
   // Recurring subscriptions/bills due in this month.

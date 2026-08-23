@@ -1,7 +1,7 @@
-Finance Quest V4.4.16
+Finance Quest V4.4.17
 
-FIX — Résumé du mois / Dépenses.
-Le résumé utilisait encore l'ancien monthExpenses(), qui ne comptait que les dépenses
-directes du calendrier. Il utilise maintenant le calcul unifié totalMonthlyOutflowsForSummary(),
-qui inclut les dépenses directes, les échéances de crédits et les abonnements/prélèvements du mois.
-Cache-buster : app.js?v=4.4.16.
+FIX REGRESSION — Crédits.
+Restauration du calcul de dette totale à partir des crédits actifs/restants.
+Le résumé mensuel des dépenses continue d'utiliser le calcul unifié et les échéances
+de crédits utilisent le montant de l'échéance lorsqu'il est disponible.
+Cache-buster : app.js?v=4.4.17.
